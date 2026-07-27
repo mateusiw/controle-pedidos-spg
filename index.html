@@ -537,31 +537,18 @@ function _filtrarPedidosJS(rows, f) {
   dados = _filtrarPorLista(dados, f.clientes, 'cliente');
   dados = _filtrarPorLista(dados, f.produtos, 'produto');
   dados = _filtrarPorLista(dados, f.culturas, 'cultura');
-  dados = _filtrarPorLista(dados, f.status, 'status');
   return dados;
 }
 function _dashboardPedidosJS(todos, f) {
   const dados = _filtrarPedidosJS(todos, f);
 
   const totalSolicitado = dados.reduce((s, r) => s + r.qtde_solicitada, 0);
-  const totalConcluido  = dados.reduce((s, r) => s + r.qtde_concluida, 0);
-  const totalRestante    = dados.reduce((s, r) => s + r.restante, 0);
-
-  const mapStatus = {};
-  dados.forEach(r => {
-    const k = r.status || '(sem status)';
-    if (!mapStatus[k]) mapStatus[k] = { status: k, linhas: 0, qtde: 0 };
-    mapStatus[k].linhas++;
-    mapStatus[k].qtde += r.qtde_solicitada;
-  });
-  const porStatus = Object.values(mapStatus).sort((a, b) => b.qtde - a.qtde);
 
   const mapSemana = {};
   dados.forEach(r => {
     const k = String(r.semana || '(sem semana)');
-    if (!mapSemana[k]) mapSemana[k] = { semana: k, solicitado: 0, concluido: 0 };
+    if (!mapSemana[k]) mapSemana[k] = { semana: k, solicitado: 0 };
     mapSemana[k].solicitado += r.qtde_solicitada;
-    mapSemana[k].concluido  += r.qtde_concluida;
   });
   const porSemana = Object.values(mapSemana).sort((a, b) => Number(a.semana) - Number(b.semana));
 
@@ -589,8 +576,6 @@ function _dashboardPedidosJS(todos, f) {
     .sort((a, b) => b.qtde - a.qtde);
 
   const totalKgSolicitado = dados.reduce((s, r) => s + r.kg_solicitado, 0);
-  const totalKgConcluido  = dados.reduce((s, r) => s + r.kg_concluido, 0);
-  const totalKgRestante   = dados.reduce((s, r) => s + r.kg_restante, 0);
   const linhasSemPeso     = dados.filter(r => !r.peso_identificado).length;
 
   return {
@@ -598,23 +583,17 @@ function _dashboardPedidosJS(todos, f) {
       total_linhas:                dados.length,
       total_pedidos:               new Set(dados.map(r => r.numero_pedido)).size,
       total_solicitado:            +totalSolicitado.toFixed(2),
-      total_concluido:             +totalConcluido.toFixed(2),
-      total_restante:              +totalRestante.toFixed(2),
       total_kg_solicitado:         +totalKgSolicitado.toFixed(2),
-      total_kg_concluido:          +totalKgConcluido.toFixed(2),
-      total_kg_restante:           +totalKgRestante.toFixed(2),
-      linhas_sem_peso_identificado: linhasSemPeso,
-      pct_concluido:               totalSolicitado > 0 ? +((totalConcluido / totalSolicitado) * 100).toFixed(1) : 0
+      linhas_sem_peso_identificado: linhasSemPeso
     },
-    porStatus, porSemana, porCliente, porProduto,
+    porSemana, porCliente, porProduto,
     // Cascata: cada dropdown só lista o que ainda faz sentido dado os OUTROS
     // filtros já marcados (nunca o próprio) — ex.: marcar um cliente que só
     // pediu Brócolis já esconde as outras culturas do dropdown de Cultura.
     filtros: {
       clientes: [...new Set(_filtrarPedidosJS(todos, { ...f, clientes: [] }).map(r => r.cliente).filter(Boolean))].sort(),
       produtos: [...new Set(_filtrarPedidosJS(todos, { ...f, produtos: [] }).map(r => r.produto).filter(Boolean))].sort(),
-      culturas: [...new Set(_filtrarPedidosJS(todos, { ...f, culturas: [] }).map(r => r.cultura).filter(Boolean))].sort(),
-      status:   [...new Set(_filtrarPedidosJS(todos, { ...f, status: [] }).map(r => r.status).filter(Boolean))].sort()
+      culturas: [...new Set(_filtrarPedidosJS(todos, { ...f, culturas: [] }).map(r => r.cultura).filter(Boolean))].sort()
     }
   };
 }
@@ -1179,14 +1158,6 @@ function fmtMesLabel(mesISO) {
   if (!m) return mesISO;
   return nomeMes(m[2]) + '/' + m[1];
 }
-function corStatus(status) {
-  const s = (status || '').toLowerCase();
-  if (s.includes('final') || s.includes('conclu')) return 'verde';
-  if (s.includes('cancel') || s.includes('devolv')) return 'vermelho';
-  if (s.includes('andamento') || s.includes('process') || s.includes('separa')) return 'azul';
-  if (s.includes('pend') || s.includes('aberto')) return 'amarelo';
-  return 'cinza';
-}
 
 function corProduto(produto) {
   const p = (produto || '').toLowerCase();
@@ -1514,7 +1485,6 @@ function renderPedidosTab() {
           ${msFilterHtml('fpCliente', 'Cliente')}
           ${msFilterHtml('fpProduto', 'Produto')}
           ${msFilterHtml('fpCultura', 'Cultura')}
-          ${msFilterHtml('fpStatus', 'Status')}
           <div class="filter-item" style="flex:0 0 auto;display:flex;gap:8px;">
             <button class="btn btn-secondary" onclick="limparFiltrosPedidos()">Limpar</button>
             <button class="btn btn-secondary" title="Ignorar cache e buscar dados novos" onclick="gsCacheClear();loadPedidos();">🔄</button>
@@ -1524,14 +1494,13 @@ function renderPedidosTab() {
     </div>
     <div class="stats-grid mb-3" id="pKpis"></div>
     <div class="grid-auto mb-3">
-      <div class="card"><div class="card-header"><h3>Pedidos por Status</h3></div><div class="card-body"><canvas id="cPStatus" height="220"></canvas></div></div>
-      <div class="card"><div class="card-header"><h3>Solicitado × Concluído por Semana</h3></div><div class="card-body"><canvas id="cPSemana" height="220"></canvas></div></div>
+      <div class="card"><div class="card-header"><h3>Solicitado por Semana</h3></div><div class="card-body"><canvas id="cPSemana" height="220"></canvas></div></div>
       <div class="card"><div class="card-header"><h3>Top Clientes (quantidade)</h3></div><div class="card-body"><canvas id="cPClientes" height="220"></canvas></div></div>
     </div>
     <div class="card">
       <div class="card-header"><h3>📋 Pedidos</h3><span class="text-muted" id="pContagem"></span><button class="btn btn-secondary btn-sm" onclick="gerarRelatorioPedidos()">🖨️ Relatório</button></div>
       <div class="table-wrap table-scroll"><table>
-        <thead><tr><th>Semana</th><th>Data</th><th>Pedido</th><th>Cliente</th><th>Produto</th><th>Solicitado</th><th>Concluído</th><th>Restante</th><th>Kg Solicitado</th><th>Status</th></tr></thead>
+        <thead><tr><th>Semana</th><th>Data</th><th>Pedido</th><th>Cliente</th><th>Produto</th><th>Solicitado</th><th>Descartado</th><th>Aproveitado</th><th>Kg Solicitado</th></tr></thead>
         <tbody id="pTabela"></tbody>
       </table></div>
       <p class="text-muted" style="padding:8px 20px 14px;">Kg = quantidade × peso indicado no nome do produto (ex.: "Pepino 280g" = pacote de 280g, mesmo contendo várias unidades dentro). Produtos já vendidos em kg (ex.: Brócolis In Natura) usam o valor direto, com a quantidade de unidades estimada (≈) a partir do peso médio real da aba "Entregas Parceiros". Itens sem peso identificável no nome aparecem como "—".</p>
@@ -1545,7 +1514,6 @@ function limparFiltrosPedidos() {
   populateMultiSelect('fpCliente', f.clientes || [], [], loadPedidos);
   populateMultiSelect('fpProduto', f.produtos || [], [], loadPedidos);
   populateMultiSelect('fpCultura', f.culturas || [], [], loadPedidos);
-  populateMultiSelect('fpStatus',  f.status   || [], [], loadPedidos);
   loadPedidos();
 }
 
@@ -1555,29 +1523,46 @@ function _filtrosPedidos() {
     data_inicio, data_fim,
     clientes: getSelectedMulti('fpCliente'),
     produtos: getSelectedMulti('fpProduto'),
-    culturas: getSelectedMulti('fpCultura'),
-    status:   getSelectedMulti('fpStatus')
+    culturas: getSelectedMulti('fpCultura')
   };
 }
 
 function loadPedidos() {
   const f = _filtrosPedidos();
   showLoading(true);
-  gsCached('listarPedidos', App.token, {}).then(todosRaw => {
+  Promise.all([
+    gsCached('listarPedidos', App.token, {}),
+    gsCached('listarDevolucoes', App.token, {})
+  ]).then(([todosRaw, devolucoesRaw]) => {
     showLoading(false);
     const todos  = _comCultura(todosRaw, 'produto');
     const dash   = _dashboardPedidosJS(todos, f);
     const linhas = _filtrarPedidosJS(todos, f);
     AppState.pedidos.resumo = dash;
     AppState.pedidos.dados  = linhas;
+    // Descartado por pedido+produto — o que voltou via Devolução reduz o
+    // que de fato foi aproveitado daquele pedido.
+    AppState.pedidos.devolvidoMap = {};
+    (devolucoesRaw || []).forEach(d => {
+      const chave = d.numero_pedido + '|' + d.produto;
+      AppState.pedidos.devolvidoMap[chave] = (AppState.pedidos.devolvidoMap[chave] || 0) + Number(d.quantidade || 0);
+    });
     populateMultiSelect('fpCliente', dash.filtros.clientes, f.clientes, loadPedidos);
     populateMultiSelect('fpProduto', dash.filtros.produtos, f.produtos, loadPedidos);
     populateMultiSelect('fpCultura', dash.filtros.culturas, f.culturas, loadPedidos);
-    populateMultiSelect('fpStatus',  dash.filtros.status,   f.status,   loadPedidos);
     _renderKpisPedidos(dash.resumo);
     _renderChartsPedidos(dash);
     _renderTabelaPedidos(linhas);
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
+}
+function _pedidoDevolvido(r) {
+  const map = AppState.pedidos.devolvidoMap || {};
+  return map[r.numero_pedido + '|' + r.produto] || 0;
+}
+function _pedidoPctAproveitamento(r) {
+  if (!(r.qtde_solicitada > 0)) return null;
+  const util = Math.max(0, r.qtde_solicitada - _pedidoDevolvido(r));
+  return +((util / r.qtde_solicitada) * 100).toFixed(1);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1805,11 +1790,7 @@ function _renderKpisPedidos(r) {
     <div class="stat-card"><div class="stat-value stat-verde">${fmtNum(r.total_pedidos)}</div><div class="stat-label">Pedidos</div></div>
     <div class="stat-card"><div class="stat-value stat-azul">${fmtNum(r.total_linhas)}</div><div class="stat-label">Itens</div></div>
     <div class="stat-card"><div class="stat-value stat-azul">${fmtNum(r.total_solicitado)}</div><div class="stat-label">Solicitado</div></div>
-    <div class="stat-card"><div class="stat-value stat-verde">${fmtNum(r.total_concluido)}</div><div class="stat-label">Concluído</div></div>
-    <div class="stat-card"><div class="stat-value stat-ambar">${fmtNum(r.total_restante)}</div><div class="stat-label">Restante</div></div>
-    <div class="stat-card"><div class="stat-value stat-verde">${r.pct_concluido}%</div><div class="stat-label">Concluído</div></div>
-    <div class="stat-card"><div class="stat-value stat-azul">${fmtKg(r.total_kg_solicitado)}</div><div class="stat-label">Kg Solicitado</div></div>
-    <div class="stat-card"><div class="stat-value stat-verde">${fmtKg(r.total_kg_concluido)}</div><div class="stat-label">Kg Concluído</div></div>`;
+    <div class="stat-card"><div class="stat-value stat-azul">${fmtKg(r.total_kg_solicitado)}</div><div class="stat-label">Kg Solicitado</div></div>`;
 }
 
 function _destroyChart(store, key) { if (store[key]) { store[key].destroy(); delete store[key]; } }
@@ -2020,15 +2001,9 @@ function createModernDoughnutChart(canvasId, labels, data, colors, opts = {}) {
 
 function _renderChartsPedidos(dash) {
   const store = AppState.pedidos.charts;
-  const mapaCor = {};
 
-  createModernDoughnutChart('cPStatus', dash.porStatus.map(s => s.status), dash.porStatus.map(s => s.qtde),
-    dash.porStatus.map(s => corPaleta(s.status, mapaCor)), { store, key: 'status' });
-
-  createModernGroupedBarChart('cPSemana', dash.porSemana.map(s => 'Sem ' + s.semana), [
-    { label: 'Solicitado', data: dash.porSemana.map(s => s.solicitado), color: COR_SOLICITADO },
-    { label: 'Concluído', data: dash.porSemana.map(s => s.concluido), color: COR_CONCLUIDO }
-  ], { store, key: 'semana' });
+  createModernBarChart('cPSemana', dash.porSemana.map(s => 'Sem ' + s.semana), dash.porSemana.map(s => s.solicitado),
+    { store, key: 'semana', color: COR_SOLICITADO });
 
   createModernBarChart('cPClientes', dash.porCliente.map(c => c.cliente), dash.porCliente.map(c => c.qtde),
     { store, key: 'clientes', horizontal: true, color: COR_SOLICITADO });
@@ -2038,10 +2013,14 @@ function _renderTabelaPedidos(linhas) {
   document.getElementById('pContagem').textContent = linhas.length + ' item(ns)';
   const tbody = document.getElementById('pTabela');
   if (linhas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Nenhum pedido encontrado para os filtros atuais.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Nenhum pedido encontrado para os filtros atuais.</td></tr>';
     return;
   }
-  tbody.innerHTML = linhas.map(r => `
+  tbody.innerHTML = linhas.map(r => {
+    const descartado = _pedidoDevolvido(r);
+    const aproveitado = Math.max(0, r.qtde_solicitada - descartado);
+    const pct = _pedidoPctAproveitamento(r);
+    return `
     <tr>
       <td>${r.semana ?? '—'}</td>
       <td>${fmtDate(r.data)}</td>
@@ -2049,11 +2028,11 @@ function _renderTabelaPedidos(linhas) {
       <td>${r.cliente}</td>
       <td>${r.produto}</td>
       <td>${fmtQtde(r.qtde_solicitada, r.tipo)}</td>
-      <td>${fmtQtde(r.qtde_concluida, r.tipo)}</td>
-      <td>${fmtQtde(r.restante, r.tipo)}</td>
+      <td>${descartado > 0 ? fmtQtde(descartado, r.tipo) : '—'}</td>
+      <td>${fmtQtde(aproveitado, r.tipo)} ${pct != null ? `<span class="badge" style="background:${_corAproveitamento(pct)}20;color:${_corAproveitamento(pct)};">${pct}%</span>` : ''}</td>
       <td>${r.peso_identificado ? fmtKgComUnidades(r.kg_solicitado, r.unidades_estimadas_solicitado) : '—'}</td>
-      <td><span class="badge badge-${corStatus(r.status)}">${r.status || '—'}</span></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function gerarRelatorioPedidos() {
@@ -2069,20 +2048,24 @@ function gerarRelatorioPedidos() {
     parametros: [
       { label: 'Período', valor: _relPeriodo(f) },
       { label: 'Cliente', valor: _relLista(f.clientes) },
-      { label: 'Produto', valor: _relLista(f.produtos) },
-      { label: 'Status', valor: _relLista(f.status) }
+      { label: 'Produto', valor: _relLista(f.produtos) }
     ],
     resumo: [
       { label: 'Total de Pedidos', valor: fmtNum(r.total_pedidos) },
-      { label: 'Solicitado', valor: fmtNum(r.total_solicitado) },
-      { label: 'Concluído', valor: fmtNum(r.total_concluido) },
-      { label: 'Restante', valor: fmtNum(r.total_restante) }
+      { label: 'Solicitado', valor: fmtNum(r.total_solicitado) }
     ],
-    colunas: ['Semana', 'Data', 'Pedido', 'Cliente', 'Produto', 'Solicitado', 'Concluído', 'Restante', 'Status'],
-    linhas: linhas.map(x => [
-      x.semana ?? '—', fmtDate(x.data), x.numero_pedido, x.cliente, x.produto,
-      fmtQtde(x.qtde_solicitada, x.tipo), fmtQtde(x.qtde_concluida, x.tipo), fmtQtde(x.restante, x.tipo), x.status || '—'
-    ])
+    colunas: ['Semana', 'Data', 'Pedido', 'Cliente', 'Produto', 'Solicitado', 'Descartado', 'Aproveitado'],
+    linhas: linhas.map(x => {
+      const descartado = _pedidoDevolvido(x);
+      const aproveitado = Math.max(0, x.qtde_solicitada - descartado);
+      const pct = _pedidoPctAproveitamento(x);
+      return [
+        x.semana ?? '—', fmtDate(x.data), x.numero_pedido, x.cliente, x.produto,
+        fmtQtde(x.qtde_solicitada, x.tipo),
+        descartado > 0 ? fmtQtde(descartado, x.tipo) : '—',
+        fmtQtde(aproveitado, x.tipo) + (pct != null ? ' (' + pct + '%)' : '')
+      ];
+    })
   });
 }
 </script>
@@ -2139,7 +2122,7 @@ function renderParceirosTab() {
         <thead><tr><th>Data</th><th>Semana</th><th>Pedido</th><th>Cliente</th><th>Parceiro</th><th>Produto</th><th>Tipo</th><th>Quantidade</th><th>Kg</th><th>Devolvido</th></tr></thead>
         <tbody id="aTabela"></tbody>
       </table></div>
-      <p class="text-muted" style="padding:8px 20px 14px;">Data/Ano/Mês são obtidos cruzando o Número do Pedido com a aba "Controle de Pedidos". "Devolvido" é marcado quando o Status do pedido contém "Devolvido".</p>
+      <p class="text-muted" style="padding:8px 20px 14px;">Data/Ano/Mês são obtidos cruzando o Número do Pedido com a aba "Controle de Pedidos". "Devolvido" é marcado quando existe um registro na aba "Devoluções" para o mesmo pedido, produto e parceiro.</p>
     </div>`;
   initDateRangePicker('faPeriodo', loadParceiros);
   _atualizarBotoesGranularidade();
@@ -2169,9 +2152,24 @@ function _filtrosParceiros() {
 function loadParceiros() {
   const f = _filtrosParceiros();
   showLoading(true);
-  gsCached('listarDistribuicaoParceiros', App.token, {}).then(todosRaw => {
+  Promise.all([
+    gsCached('listarDistribuicaoParceiros', App.token, {}),
+    gsCached('listarDevolucoes', App.token, {})
+  ]).then(([todosRaw, devolucoesRaw]) => {
     showLoading(false);
-    const todos  = _comCultura(todosRaw, 'produto');
+    const todos = _comCultura(todosRaw, 'produto');
+    // O campo "devolvido" que vinha pronto do servidor era baseado no Status
+    // do pedido, que não existe mais — recalcula aqui cruzando com a
+    // quantidade real devolvida na aba Devoluções (por pedido + produto + parceiro).
+    const devolvidoMap = {};
+    (devolucoesRaw || []).forEach(d => {
+      const chave = d.numero_pedido + '|' + d.produto + '|' + d.parceiro;
+      devolvidoMap[chave] = (devolvidoMap[chave] || 0) + Number(d.quantidade || 0);
+    });
+    todos.forEach(r => {
+      r.devolvido_qtde = devolvidoMap[r.numero_pedido + '|' + r.produto + '|' + r.parceiro] || 0;
+      r.devolvido = r.devolvido_qtde > 0;
+    });
     const dash   = _dashboardParceirosJS(todos, f);
     const linhas = _filtrarDistribuicaoJS(todos, f);
     AppState.parceiros.resumo = dash;
@@ -2274,7 +2272,7 @@ function _renderTabelaParceiros(linhas) {
       <td>${r.tipo || '—'}</td>
       <td>${fmtNum(r.quantidade)}</td>
       <td>${r.peso_identificado ? fmtKgComUnidades(r.kg, r.unidades_estimadas) : '—'}</td>
-      <td>${r.devolvido ? '<span class="badge badge-vermelho">Sim</span>' : '—'}</td>
+      <td>${r.devolvido_qtde > 0 ? `<span class="badge badge-vermelho">${fmtQtde(r.devolvido_qtde, r.tipo)}</span>` : '—'}</td>
     </tr>`).join('');
 }
 
@@ -2303,7 +2301,7 @@ function gerarRelatorioParceiros() {
     colunas: ['Data', 'Semana', 'Pedido', 'Cliente', 'Parceiro', 'Produto', 'Tipo', 'Quantidade', 'Devolvido'],
     linhas: linhas.map(x => [
       fmtDate(x.data), x.semana ?? '—', x.numero_pedido, x.cliente, x.parceiro, x.produto,
-      x.tipo || '—', fmtNum(x.quantidade), x.devolvido ? 'Sim' : '—'
+      x.tipo || '—', fmtNum(x.quantidade), x.devolvido_qtde > 0 ? fmtQtde(x.devolvido_qtde, x.tipo) : '—'
     ])
   });
 }
@@ -3226,6 +3224,8 @@ function renderLancarTab() {
     <datalist id="dlStatus"></datalist>
     <datalist id="dlMotivosDevolucao"></datalist>
     <datalist id="dlMotivosBonificacao"></datalist>
+    <datalist id="dlDevParceiros"></datalist>
+    <datalist id="dlDevProdutos"></datalist>
 
     <div class="tabbar">
       <button id="tabsub_novo" class="tab-btn" onclick="_lpSubTab('novo')">🧾 Novo Pedido</button>
@@ -3276,10 +3276,14 @@ function renderLancarTab() {
         <div class="form-group"><label class="form-label">Número do Pedido</label><select id="devNumero" class="form-control" onchange="_lpPreencherClienteDevolucao()"><option value="">Selecione...</option></select></div>
         <div class="form-group"><label class="form-label">Cliente (preenchido automaticamente)</label><input id="devCliente" class="form-control" readonly style="background:var(--surface-2);cursor:default;"></div>
         <div class="form-group"><label class="form-label">Data do registro da devolução</label><input type="date" id="devData" class="form-control"></div>
-        <div class="form-group"><label class="form-label">Parceiro</label><input id="devParceiro" list="dlParceiros" class="form-control" autocomplete="off"></div>
-        <div class="form-group"><label class="form-label">Produto</label><input id="devProduto" list="dlProdutos" class="form-control" autocomplete="off"></div>
+        <div class="form-group"><label class="form-label">Parceiro</label><input id="devParceiro" list="dlDevParceiros" class="form-control" autocomplete="off" oninput="_lpAtualizarProdutosDevolucao()"></div>
+        <div class="form-group"><label class="form-label">Produto</label><input id="devProduto" list="dlDevProdutos" class="form-control" autocomplete="off" oninput="_lpAtualizarLimiteQtdeDevolucao()"></div>
         <div class="form-row cols-2">
-          <div class="form-group"><label class="form-label">Quantidade</label><input type="text" id="devQtde" class="form-control num-mask" inputmode="decimal"></div>
+          <div class="form-group">
+            <label class="form-label">Quantidade</label>
+            <input type="text" id="devQtde" class="form-control num-mask" inputmode="decimal">
+            <p class="text-muted" id="devQtdeMax" style="margin:4px 0 0;"></p>
+          </div>
           <div class="form-group"><label class="form-label">Tipo</label><select id="devTipo" class="form-control"><option value="Unidades">Unidades</option><option value="kg">kg</option></select></div>
         </div>
         <div class="form-group"><label class="form-label">Motivo</label><input id="devMotivo" list="dlMotivosDevolucao" class="form-control" autocomplete="off"></div>
@@ -3973,6 +3977,65 @@ function _lpPreencherClienteDevolucao() {
   const numero = document.getElementById('devNumero').value;
   const pedido = _lpPedidosList.find(p => p.numero_pedido === numero);
   document.getElementById('devCliente').value = pedido ? pedido.cliente : '';
+  // Troca de pedido invalida qualquer Parceiro/Produto já digitado — limpa
+  // pra não deixar um valor de um pedido antigo parecendo válido no novo.
+  document.getElementById('devParceiro').value = '';
+  document.getElementById('devProduto').value = '';
+  _lpAtualizarParceirosDevolucao();
+}
+
+// Um mesmo Número do Pedido tem uma linha por produto em "Controle de
+// Pedidos", cada uma com sua própria distribuição de parceiros — junta
+// todas as linhas desse pedido pra saber quem (parceiros) e o quê
+// (produtos) realmente fizeram parte dele.
+function _lpLinhasDoPedidoDevolucao() {
+  const numero = document.getElementById('devNumero').value;
+  if (!numero) return [];
+  return (AppState.lancar.pedidos || []).filter(p => p.numero_pedido === numero);
+}
+function _lpAtualizarParceirosDevolucao() {
+  const linhas = _lpLinhasDoPedidoDevolucao();
+  const parceiros = [...new Set(linhas.flatMap(l => (l.parceiros || []).map(p => p.parceiro)).filter(Boolean))].sort();
+  _lpPreencherDatalist('dlDevParceiros', parceiros);
+  _lpAtualizarProdutosDevolucao();
+}
+function _lpAtualizarProdutosDevolucao() {
+  const linhas = _lpLinhasDoPedidoDevolucao();
+  const parceiroAtual = document.getElementById('devParceiro').value.trim();
+  const relevantes = parceiroAtual
+    ? linhas.filter(l => (l.parceiros || []).some(p => p.parceiro === parceiroAtual))
+    : linhas;
+  const produtos = [...new Set(relevantes.map(l => l.produto).filter(Boolean))].sort();
+  _lpPreencherDatalist('dlDevProdutos', produtos);
+  // Parceiro trocado pode invalidar o produto já digitado (esse parceiro não
+  // atendeu aquele produto) — limpa pra não deixar uma combinação incoerente.
+  const campoProduto = document.getElementById('devProduto');
+  if (campoProduto.value && !produtos.includes(campoProduto.value)) campoProduto.value = '';
+  _lpAtualizarLimiteQtdeDevolucao();
+}
+
+// Quanto o parceiro selecionado ficou responsável de um produto dentro
+// desse pedido (ou, sem parceiro escolhido ainda, a qtde solicitada total
+// do produto) — é esse número que limita quanto pode ser devolvido, já que
+// devolver mais do que foi de fato entregue não faz sentido.
+function _lpLimiteQtdeDevolucao() {
+  const linhas = _lpLinhasDoPedidoDevolucao();
+  const produtoAtual  = document.getElementById('devProduto').value.trim();
+  const parceiroAtual = document.getElementById('devParceiro').value.trim();
+  if (!produtoAtual) return null;
+  const linha = linhas.find(l => l.produto === produtoAtual);
+  if (!linha) return null;
+  if (parceiroAtual) {
+    const dist = (linha.parceiros || []).find(p => p.parceiro === parceiroAtual);
+    return dist ? dist.quantidade : null;
+  }
+  return linha.qtde_solicitada != null ? linha.qtde_solicitada : null;
+}
+function _lpAtualizarLimiteQtdeDevolucao() {
+  const hint = document.getElementById('devQtdeMax');
+  if (!hint) return;
+  const max = _lpLimiteQtdeDevolucao();
+  hint.textContent = max != null ? `Máximo permitido: ${fmtNum(max)}` : '';
 }
 
 // Depois de gravar, limpa o cache de leitura e esquece o dashboard já
@@ -4066,6 +4129,11 @@ function salvarDevolucao() {
   };
   if (!dados.data || !dados.numero_pedido || !dados.cliente || !dados.parceiro || !dados.produto || !(Number(dados.quantidade) > 0)) {
     toast('Preencha Data, Número do Pedido, Parceiro, Produto e uma Quantidade maior que zero.', 'error');
+    return;
+  }
+  const limite = _lpLimiteQtdeDevolucao();
+  if (limite != null && dados.quantidade > limite) {
+    toast(`Quantidade maior do que o pedido: ${dados.parceiro} recebeu apenas ${fmtNum(limite)} de "${dados.produto}" nesse pedido.`, 'error');
     return;
   }
   showLoading(true);
