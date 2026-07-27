@@ -518,6 +518,61 @@ function _filtrarPorLista(rows, valores, campoRow) {
   const set = new Set(valores);
   return rows.filter(x => set.has(x[campoRow]));
 }
+// Busca por texto livre (ex.: NFe) — parcial e sem diferenciar maiúsculas.
+function _filtrarPorTexto(rows, texto, campoRow) {
+  const busca = String(texto || '').trim().toLowerCase();
+  if (!busca) return rows;
+  return rows.filter(x => String(x[campoRow] || '').toLowerCase().includes(busca));
+}
+// Espera a pessoa parar de digitar antes de refiltrar — senão um campo de
+// busca livre (ex.: NFe) recalcula tabela/gráficos a cada tecla.
+function _debounce(fn, ms) {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+
+// ── Ordenar tabelas por Data (mais recentes/mais antigos) ──────────────
+// Um botão no cabeçalho de cada tabela com coluna Data alterna a ordem —
+// guarda o estado por chave de tabela e sabe como re-renderizar cada uma
+// (usando os dados já carregados em AppState, sem precisar buscar de novo).
+// 'desc' (mais recentes primeiro) é o padrão de todas.
+const _ordemDataTabelas = {};
+function _ordenarPorData(lista, chave) {
+  const ordem = _ordemDataTabelas[chave] || 'desc';
+  return [...(lista || [])].sort((a, b) => {
+    const cmp = String(a.data || '').localeCompare(String(b.data || ''));
+    return ordem === 'desc' ? -cmp : cmp;
+  });
+}
+function _rendererOrdemData(chave) {
+  const mapa = {
+    pedidos:    () => _renderTabelaPedidos(AppState.pedidos.dados || []),
+    parceiros:  () => _renderTabelaParceiros(AppState.parceiros.dados || []),
+    descartes:  () => _renderTabelaDescartes(AppState.descartes.dados || []),
+    devolucoes: () => _renderTabelaDevolucoes(AppState.devolucoes.dados || []),
+    lancar:     () => _renderTabelaPedidosRegistrados(AppState.lancar.registrados || [])
+  };
+  return mapa[chave];
+}
+function _toggleOrdemData(chave) {
+  _ordemDataTabelas[chave] = (_ordemDataTabelas[chave] || 'desc') === 'desc' ? 'asc' : 'desc';
+  _atualizarBotaoOrdemData(chave);
+  const renderFn = _rendererOrdemData(chave);
+  if (renderFn) renderFn();
+}
+function _atualizarBotaoOrdemData(chave) {
+  const btn = document.getElementById('btnOrdem_' + chave);
+  if (!btn) return;
+  const ordem = _ordemDataTabelas[chave] || 'desc';
+  btn.innerHTML = ordem === 'desc' ? '↓ Mais recentes' : '↑ Mais antigos';
+}
+function _btnOrdemDataHtml(chave) {
+  const ordem = _ordemDataTabelas[chave] || 'desc';
+  return `<button class="btn btn-secondary btn-sm" id="btnOrdem_${chave}" title="Alternar ordem por Data" onclick="_toggleOrdemData('${chave}')">${ordem === 'desc' ? '↓ Mais recentes' : '↑ Mais antigos'}</button>`;
+}
 
 // Cultura = primeira palavra do nome (Produto em Pedidos/Parceiros, Classe em
 // Entregas/Descartes) — ex.: "Brócolis 300g" → "Brócolis", "Tomate Cereja" → "Tomate".
@@ -537,6 +592,7 @@ function _filtrarPedidosJS(rows, f) {
   dados = _filtrarPorLista(dados, f.clientes, 'cliente');
   dados = _filtrarPorLista(dados, f.produtos, 'produto');
   dados = _filtrarPorLista(dados, f.culturas, 'cultura');
+  dados = _filtrarPorTexto(dados, f.nfe, 'nfe');
   return dados;
 }
 function _dashboardPedidosJS(todos, f) {
@@ -605,6 +661,7 @@ function _filtrarDistribuicaoJS(rows, f) {
   dados = _filtrarPorLista(dados, f.clientes, 'cliente');
   dados = _filtrarPorLista(dados, f.produtos, 'produto');
   dados = _filtrarPorLista(dados, f.culturas, 'cultura');
+  dados = _filtrarPorTexto(dados, f.nfe, 'nfe');
   return dados;
 }
 function _dashboardParceirosJS(todos, f) {
@@ -1421,6 +1478,20 @@ function renderApp(root) {
         <button class="btn btn-primary" id="mcBtnOk" onclick="_mcResolver(true)">Confirmar</button>
       </div>
     </div>
+  </div>
+  <div class="modal-overlay" id="modalPeriodoRelatorio">
+    <div class="modal">
+      <div class="modal-header"><h3>🖨️ Gerar Relatório — Período</h3><button class="btn-icon" onclick="fecharModal('modalPeriodoRelatorio')">✕</button></div>
+      <p class="text-muted" style="margin:-4px 0 12px;">Escolha o período que o relatório deve cobrir (os demais filtros já selecionados na tela continuam valendo). Deixe em branco para "Todo o Histórico".</p>
+      <div class="form-row cols-2">
+        <div class="form-group"><label class="form-label">Data Início</label><input type="date" id="relPeriodoInicio" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Data Fim</label><input type="date" id="relPeriodoFim" class="form-control"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="fecharModal('modalPeriodoRelatorio')">Cancelar</button>
+        <button class="btn btn-primary" onclick="_confirmarPeriodoRelatorio()">Gerar Relatório</button>
+      </div>
+    </div>
   </div>`;
   if (window.lucide) lucide.createIcons();
   applyTheme(localStorage.getItem(THEME_KEY) || '');
@@ -1550,6 +1621,10 @@ function renderPedidosTab() {
             <label class="form-label">Período</label>
             <input type="text" id="fpPeriodo" class="form-control" placeholder="Período automático">
           </div>
+          <div class="filter-item" style="min-width:160px;">
+            <label class="form-label">NFe</label>
+            <input type="text" id="fpNfe" class="form-control" placeholder="Buscar por NFe" oninput="_debouncedLoadPedidos()">
+          </div>
           ${msFilterHtml('fpCliente', 'Cliente')}
           ${msFilterHtml('fpProduto', 'Produto')}
           ${msFilterHtml('fpCultura', 'Cultura')}
@@ -1566,9 +1641,9 @@ function renderPedidosTab() {
       <div class="card"><div class="card-header"><h3>Top Clientes (quantidade)</h3></div><div class="card-body"><canvas id="cPClientes" height="220"></canvas></div></div>
     </div>
     <div class="card">
-      <div class="card-header"><h3>📋 Pedidos</h3><span class="text-muted" id="pContagem"></span><button class="btn btn-secondary btn-sm" onclick="gerarRelatorioPedidos()">🖨️ Relatório</button></div>
+      <div class="card-header"><h3>📋 Pedidos</h3><span class="text-muted" id="pContagem"></span>${_btnOrdemDataHtml('pedidos')}<button class="btn btn-secondary btn-sm" onclick="gerarRelatorioPedidos()">🖨️ Relatório</button></div>
       <div class="table-wrap table-scroll"><table>
-        <thead><tr><th>Semana</th><th>Data</th><th>Pedido</th><th>Cliente</th><th>Produto</th><th>Solicitado</th><th>Descartado</th><th>Aproveitado</th><th>Kg Solicitado</th></tr></thead>
+        <thead><tr><th>Semana</th><th>Data</th><th>Pedido</th><th>NFe</th><th>Cliente</th><th>Produto</th><th>Solicitado</th><th>Descartado</th><th>Aproveitado</th><th>Kg Solicitado</th></tr></thead>
         <tbody id="pTabela"></tbody>
       </table></div>
       <p class="text-muted" style="padding:8px 20px 14px;">Kg = quantidade × peso indicado no nome do produto (ex.: "Pepino 280g" = pacote de 280g, mesmo contendo várias unidades dentro). Produtos já vendidos em kg (ex.: Brócolis In Natura) usam o valor direto, com a quantidade de unidades estimada (≈) a partir do peso médio real da aba "Entregas Parceiros". Itens sem peso identificável no nome aparecem como "—".</p>
@@ -1576,8 +1651,11 @@ function renderPedidosTab() {
   initDateRangePicker('fpPeriodo', loadPedidos);
 }
 
+const _debouncedLoadPedidos = _debounce(loadPedidos, 300);
+
 function limparFiltrosPedidos() {
   clearDateRangePicker('fpPeriodo');
+  document.getElementById('fpNfe').value = '';
   const f = (AppState.pedidos.resumo && AppState.pedidos.resumo.filtros) || {};
   populateMultiSelect('fpCliente', f.clientes || [], [], loadPedidos);
   populateMultiSelect('fpProduto', f.produtos || [], [], loadPedidos);
@@ -1591,7 +1669,8 @@ function _filtrosPedidos() {
     data_inicio, data_fim,
     clientes: getSelectedMulti('fpCliente'),
     produtos: getSelectedMulti('fpProduto'),
-    culturas: getSelectedMulti('fpCultura')
+    culturas: getSelectedMulti('fpCultura'),
+    nfe: (document.getElementById('fpNfe') || {}).value || ''
   };
 }
 
@@ -2078,10 +2157,11 @@ function _renderChartsPedidos(dash) {
 }
 
 function _renderTabelaPedidos(linhas) {
+  linhas = _ordenarPorData(linhas, 'pedidos');
   document.getElementById('pContagem').textContent = linhas.length + ' item(ns)';
   const tbody = document.getElementById('pTabela');
   if (linhas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Nenhum pedido encontrado para os filtros atuais.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Nenhum pedido encontrado para os filtros atuais.</td></tr>';
     return;
   }
   tbody.innerHTML = linhas.map(r => {
@@ -2093,6 +2173,7 @@ function _renderTabelaPedidos(linhas) {
       <td>${r.semana ?? '—'}</td>
       <td>${fmtDate(r.data)}</td>
       <td>${r.numero_pedido}</td>
+      <td>${r.nfe || '—'}</td>
       <td>${r.cliente}</td>
       <td>${r.produto}</td>
       <td>${fmtQtde(r.qtde_solicitada, r.tipo)}</td>
@@ -2104,36 +2185,51 @@ function _renderTabelaPedidos(linhas) {
 }
 
 function gerarRelatorioPedidos() {
-  const dash = AppState.pedidos.resumo;
-  const linhas = AppState.pedidos.dados || [];
-  if (!dash) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
-  const f = _filtrosPedidos();
-  const r = dash.resumo;
-  abrirRelatorioA4({
-    titulo: 'Calendário de Pedidos',
-    subtitulo: 'Pedidos',
-    tituloTabela: 'Mapa de Pedidos',
-    parametros: [
-      { label: 'Período', valor: _relPeriodo(f) },
-      { label: 'Cliente', valor: _relLista(f.clientes) },
-      { label: 'Produto', valor: _relLista(f.produtos) }
-    ],
-    resumo: [
-      { label: 'Total de Pedidos', valor: fmtNum(r.total_pedidos) },
-      { label: 'Solicitado', valor: fmtNum(r.total_solicitado) }
-    ],
-    colunas: ['Semana', 'Data', 'Pedido', 'Cliente', 'Produto', 'Solicitado', 'Descartado', 'Aproveitado'],
-    linhas: linhas.map(x => {
-      const descartado = _pedidoDevolvido(x);
-      const aproveitado = Math.max(0, x.qtde_solicitada - descartado);
-      const pct = _pedidoPctAproveitamento(x);
-      return [
-        x.semana ?? '—', fmtDate(x.data), x.numero_pedido, x.cliente, x.produto,
-        fmtQtde(x.qtde_solicitada, x.tipo),
-        descartado > 0 ? fmtQtde(descartado, x.tipo) : '—',
-        fmtQtde(aproveitado, x.tipo) + (pct != null ? ' (' + pct + '%)' : '')
-      ];
-    })
+  if (!AppState.pedidos.resumo) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
+  _pedirPeriodoRelatorio('fpPeriodo', periodo => {
+    const f = { ..._filtrosPedidos(), data_inicio: periodo.data_inicio, data_fim: periodo.data_fim };
+    showLoading(true);
+    Promise.all([
+      gsCached('listarPedidos', App.token, {}),
+      gsCached('listarDevolucoes', App.token, {})
+    ]).then(([todosRaw, devolucoesRaw]) => {
+      showLoading(false);
+      const todos  = _comCultura(todosRaw, 'produto');
+      const dash   = _dashboardPedidosJS(todos, f);
+      const linhas = _filtrarPedidosJS(todos, f);
+      const devolvidoMap = {};
+      (devolucoesRaw || []).forEach(d => {
+        const chave = d.numero_pedido + '|' + d.produto;
+        devolvidoMap[chave] = (devolvidoMap[chave] || 0) + Number(d.quantidade || 0);
+      });
+      const r = dash.resumo;
+      abrirRelatorioA4({
+        titulo: 'Calendário de Pedidos',
+        subtitulo: 'Pedidos',
+        tituloTabela: 'Mapa de Pedidos',
+        parametros: [
+          { label: 'Período', valor: _relPeriodo(f) },
+          { label: 'Cliente', valor: _relLista(f.clientes) },
+          { label: 'Produto', valor: _relLista(f.produtos) }
+        ],
+        resumo: [
+          { label: 'Total de Pedidos', valor: fmtNum(r.total_pedidos) },
+          { label: 'Solicitado', valor: fmtNum(r.total_solicitado) }
+        ],
+        colunas: ['Semana', 'Data', 'Pedido', 'Cliente', 'Produto', 'Solicitado', 'Descartado', 'Aproveitado'],
+        linhas: linhas.map(x => {
+          const descartado = devolvidoMap[x.numero_pedido + '|' + x.produto] || 0;
+          const aproveitado = Math.max(0, x.qtde_solicitada - descartado);
+          const pct = x.qtde_solicitada > 0 ? +((aproveitado / x.qtde_solicitada) * 100).toFixed(1) : null;
+          return [
+            x.semana ?? '—', fmtDate(x.data), x.numero_pedido, x.cliente, x.produto,
+            fmtQtde(x.qtde_solicitada, x.tipo),
+            descartado > 0 ? fmtQtde(descartado, x.tipo) : '—',
+            fmtQtde(aproveitado, x.tipo) + (pct != null ? ' (' + pct + '%)' : '')
+          ];
+        })
+      });
+    }).catch(err => { showLoading(false); toast(err.message, 'error'); });
   });
 }
 </script>
@@ -2148,6 +2244,10 @@ function renderParceirosTab() {
           <div class="filter-item" style="min-width:230px;">
             <label class="form-label">Período</label>
             <input type="text" id="faPeriodo" class="form-control" placeholder="Período automático">
+          </div>
+          <div class="filter-item" style="min-width:160px;">
+            <label class="form-label">NFe</label>
+            <input type="text" id="faNfe" class="form-control" placeholder="Buscar por NFe" oninput="_debouncedLoadParceiros()">
           </div>
           ${msFilterHtml('faParceiro', 'Parceiro')}
           ${msFilterHtml('faCliente', 'Cliente')}
@@ -2185,9 +2285,9 @@ function renderParceirosTab() {
       </table></div>
     </div>
     <div class="card">
-      <div class="card-header"><h3>📋 Distribuição — Registros</h3><span class="text-muted" id="aContagem"></span><button class="btn btn-secondary btn-sm" onclick="gerarRelatorioParceiros()">🖨️ Relatório</button></div>
+      <div class="card-header"><h3>📋 Distribuição — Registros</h3><span class="text-muted" id="aContagem"></span>${_btnOrdemDataHtml('parceiros')}<button class="btn btn-secondary btn-sm" onclick="gerarRelatorioParceiros()">🖨️ Relatório</button></div>
       <div class="table-wrap table-scroll"><table>
-        <thead><tr><th>Data</th><th>Semana</th><th>Pedido</th><th>Cliente</th><th>Parceiro</th><th>Produto</th><th>Tipo</th><th>Quantidade</th><th>Kg</th><th>Devolvido</th></tr></thead>
+        <thead><tr><th>Data</th><th>Semana</th><th>Pedido</th><th>NFe</th><th>Cliente</th><th>Parceiro</th><th>Produto</th><th>Tipo</th><th>Quantidade</th><th>Kg</th><th>Devolvido</th></tr></thead>
         <tbody id="aTabela"></tbody>
       </table></div>
       <p class="text-muted" style="padding:8px 20px 14px;">Data/Ano/Mês são obtidos cruzando o Número do Pedido com a aba "Controle de Pedidos". "Devolvido" é marcado quando existe um registro na aba "Devoluções" para o mesmo pedido, produto e parceiro.</p>
@@ -2196,8 +2296,11 @@ function renderParceirosTab() {
   _atualizarBotoesGranularidade();
 }
 
+const _debouncedLoadParceiros = _debounce(loadParceiros, 300);
+
 function limparFiltrosParceiros() {
   clearDateRangePicker('faPeriodo');
+  document.getElementById('faNfe').value = '';
   const f = (AppState.parceiros.resumo && AppState.parceiros.resumo.filtros) || {};
   populateMultiSelect('faParceiro', f.parceiros || [], [], loadParceiros);
   populateMultiSelect('faCliente',  f.clientes  || [], [], loadParceiros);
@@ -2213,7 +2316,8 @@ function _filtrosParceiros() {
     parceiros: getSelectedMulti('faParceiro'),
     clientes:  getSelectedMulti('faCliente'),
     produtos:  getSelectedMulti('faProduto'),
-    culturas:  getSelectedMulti('faCultura')
+    culturas:  getSelectedMulti('faCultura'),
+    nfe: (document.getElementById('faNfe') || {}).value || ''
   };
 }
 
@@ -2323,10 +2427,11 @@ function _renderResumoParceiros(porParceiro) {
 }
 
 function _renderTabelaParceiros(linhas) {
+  linhas = _ordenarPorData(linhas, 'parceiros');
   document.getElementById('aContagem').textContent = linhas.length + ' registro(s)';
   const tbody = document.getElementById('aTabela');
   if (linhas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Nenhum registro encontrado para os filtros atuais.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Nenhum registro encontrado para os filtros atuais.</td></tr>';
     return;
   }
   tbody.innerHTML = linhas.map(r => `
@@ -2334,6 +2439,7 @@ function _renderTabelaParceiros(linhas) {
       <td>${fmtDate(r.data)}</td>
       <td>${r.semana ?? '—'}</td>
       <td>${r.numero_pedido}</td>
+      <td>${r.nfe || '—'}</td>
       <td>${r.cliente}</td>
       <td>${r.parceiro}</td>
       <td><span class="badge badge-${corProduto(r.produto)}">${r.produto}</span></td>
@@ -2345,32 +2451,51 @@ function _renderTabelaParceiros(linhas) {
 }
 
 function gerarRelatorioParceiros() {
-  const dash = AppState.parceiros.resumo;
-  const linhas = AppState.parceiros.dados || [];
-  if (!dash) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
-  const f = _filtrosParceiros();
-  const r = dash.resumo;
-  abrirRelatorioA4({
-    titulo: 'Distribuição por Parceiros',
-    subtitulo: 'Parceiros',
-    tituloTabela: 'Registros de Distribuição',
-    parametros: [
-      { label: 'Período', valor: _relPeriodo(f) },
-      { label: 'Parceiro', valor: _relLista(f.parceiros) },
-      { label: 'Cliente', valor: _relLista(f.clientes) },
-      { label: 'Produto', valor: _relLista(f.produtos) }
-    ],
-    resumo: [
-      { label: 'Total Fornecido', valor: fmtNum(r.total_fornecido) },
-      { label: 'Total em Kg', valor: fmtKg(r.total_kg_fornecido) },
-      { label: 'Parceiros', valor: fmtNum(r.num_parceiros) },
-      { label: 'Pedidos Devolvidos', valor: fmtNum(r.total_pedidos_devolvidos) }
-    ],
-    colunas: ['Data', 'Semana', 'Pedido', 'Cliente', 'Parceiro', 'Produto', 'Tipo', 'Quantidade', 'Devolvido'],
-    linhas: linhas.map(x => [
-      fmtDate(x.data), x.semana ?? '—', x.numero_pedido, x.cliente, x.parceiro, x.produto,
-      x.tipo || '—', fmtNum(x.quantidade), x.devolvido_qtde > 0 ? fmtQtde(x.devolvido_qtde, x.tipo) : '—'
-    ])
+  if (!AppState.parceiros.resumo) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
+  _pedirPeriodoRelatorio('faPeriodo', periodo => {
+    const f = { ..._filtrosParceiros(), data_inicio: periodo.data_inicio, data_fim: periodo.data_fim };
+    showLoading(true);
+    Promise.all([
+      gsCached('listarDistribuicaoParceiros', App.token, {}),
+      gsCached('listarDevolucoes', App.token, {})
+    ]).then(([todosRaw, devolucoesRaw]) => {
+      showLoading(false);
+      const todos = _comCultura(todosRaw, 'produto');
+      const devolvidoMap = {};
+      (devolucoesRaw || []).forEach(d => {
+        const chave = d.numero_pedido + '|' + d.produto + '|' + d.parceiro;
+        devolvidoMap[chave] = (devolvidoMap[chave] || 0) + Number(d.quantidade || 0);
+      });
+      todos.forEach(r => {
+        r.devolvido_qtde = devolvidoMap[r.numero_pedido + '|' + r.produto + '|' + r.parceiro] || 0;
+        r.devolvido = r.devolvido_qtde > 0;
+      });
+      const dash   = _dashboardParceirosJS(todos, f);
+      const linhas = _filtrarDistribuicaoJS(todos, f);
+      const r = dash.resumo;
+      abrirRelatorioA4({
+        titulo: 'Distribuição por Parceiros',
+        subtitulo: 'Parceiros',
+        tituloTabela: 'Registros de Distribuição',
+        parametros: [
+          { label: 'Período', valor: _relPeriodo(f) },
+          { label: 'Parceiro', valor: _relLista(f.parceiros) },
+          { label: 'Cliente', valor: _relLista(f.clientes) },
+          { label: 'Produto', valor: _relLista(f.produtos) }
+        ],
+        resumo: [
+          { label: 'Total Fornecido', valor: fmtNum(r.total_fornecido) },
+          { label: 'Total em Kg', valor: fmtKg(r.total_kg_fornecido) },
+          { label: 'Parceiros', valor: fmtNum(r.num_parceiros) },
+          { label: 'Pedidos Devolvidos', valor: fmtNum(r.total_pedidos_devolvidos) }
+        ],
+        colunas: ['Data', 'Semana', 'Pedido', 'Cliente', 'Parceiro', 'Produto', 'Tipo', 'Quantidade', 'Devolvido'],
+        linhas: linhas.map(x => [
+          fmtDate(x.data), x.semana ?? '—', x.numero_pedido, x.cliente, x.parceiro, x.produto,
+          x.tipo || '—', fmtNum(x.quantidade), x.devolvido_qtde > 0 ? fmtQtde(x.devolvido_qtde, x.tipo) : '—'
+        ])
+      });
+    }).catch(err => { showLoading(false); toast(err.message, 'error'); });
   });
 }
 </script>
@@ -2519,29 +2644,36 @@ function _renderResumoEntregas(porParceiro) {
 }
 
 function gerarRelatorioEntregas() {
-  const dash = AppState.entregas.resumo;
-  if (!dash) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
-  const f = _filtrosEntregas();
-  const r = dash.resumo;
-  abrirRelatorioA4({
-    titulo: 'Entregas de Parceiros',
-    subtitulo: 'Entregas',
-    tituloTabela: 'Resumo por Parceiro',
-    parametros: [
-      { label: 'Período', valor: _relPeriodo(f) },
-      { label: 'Parceiro', valor: _relLista(f.parceiros) },
-      { label: 'Classe', valor: _relLista(f.classes) }
-    ],
-    resumo: [
-      { label: 'Total Entregue', valor: fmtKg(r.total_kg) },
-      { label: 'Unidades', valor: fmtNum(r.total_unidades) },
-      { label: 'Dias c/ Entrega', valor: fmtNum(r.dias_com_entrega) },
-      { label: 'Parceiros', valor: fmtNum(r.total_parceiros) }
-    ],
-    colunas: ['Parceiro', 'Kg', 'Unidades', 'Média g/Un', 'Dias c/ Entrega', 'Média Kg/Dia'],
-    linhas: dash.porParceiro.map(p => [
-      p.parceiro, fmtKg(p.peso_kg), fmtNum(p.unidades), p.media_g_un ?? '—', fmtNum(p.dias_com_entrega), fmtKg(p.media_kg_dia)
-    ])
+  if (!AppState.entregas.resumo) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
+  _pedirPeriodoRelatorio('fePeriodo', periodo => {
+    const f = { ..._filtrosEntregas(), data_inicio: periodo.data_inicio, data_fim: periodo.data_fim };
+    showLoading(true);
+    gsCached('listarEntregas', App.token, {}).then(todosRaw => {
+      showLoading(false);
+      const todos = _comCultura(todosRaw, 'classe');
+      const dash  = _dashboardEntregasJS(todos, f);
+      const r = dash.resumo;
+      abrirRelatorioA4({
+        titulo: 'Entregas de Parceiros',
+        subtitulo: 'Entregas',
+        tituloTabela: 'Resumo por Parceiro',
+        parametros: [
+          { label: 'Período', valor: _relPeriodo(f) },
+          { label: 'Parceiro', valor: _relLista(f.parceiros) },
+          { label: 'Classe', valor: _relLista(f.classes) }
+        ],
+        resumo: [
+          { label: 'Total Entregue', valor: fmtKg(r.total_kg) },
+          { label: 'Unidades', valor: fmtNum(r.total_unidades) },
+          { label: 'Dias c/ Entrega', valor: fmtNum(r.dias_com_entrega) },
+          { label: 'Parceiros', valor: fmtNum(r.total_parceiros) }
+        ],
+        colunas: ['Parceiro', 'Kg', 'Unidades', 'Média g/Un', 'Dias c/ Entrega', 'Média Kg/Dia'],
+        linhas: dash.porParceiro.map(p => [
+          p.parceiro, fmtKg(p.peso_kg), fmtNum(p.unidades), p.media_g_un ?? '—', fmtNum(p.dias_com_entrega), fmtKg(p.media_kg_dia)
+        ])
+      });
+    }).catch(err => { showLoading(false); toast(err.message, 'error'); });
   });
 }
 </script>
@@ -2580,7 +2712,7 @@ function renderDescartesTab() {
       </table></div>
     </div>
     <div class="card">
-      <div class="card-header"><h3>📋 Registros de Descarte</h3><span class="text-muted" id="dContagem"></span><button class="btn btn-secondary btn-sm" onclick="gerarRelatorioDescartes()">🖨️ Relatório</button></div>
+      <div class="card-header"><h3>📋 Registros de Descarte</h3><span class="text-muted" id="dContagem"></span>${_btnOrdemDataHtml('descartes')}<button class="btn btn-secondary btn-sm" onclick="gerarRelatorioDescartes()">🖨️ Relatório</button></div>
       <div class="table-wrap table-scroll"><table>
         <thead><tr><th>Data</th><th>Parceiro</th><th>Produção (kg)</th><th>Descarte</th><th>Motivo</th><th>Classe</th></tr></thead>
         <tbody id="dTabela"></tbody>
@@ -2669,6 +2801,7 @@ function _renderResumoDescartes(porParceiro) {
 }
 
 function _renderTabelaDescartes(linhas) {
+  linhas = _ordenarPorData(linhas, 'descartes');
   document.getElementById('dContagem').textContent = linhas.length + ' registro(s)';
   const tbody = document.getElementById('dTabela');
   if (linhas.length === 0) {
@@ -2687,30 +2820,37 @@ function _renderTabelaDescartes(linhas) {
 }
 
 function gerarRelatorioDescartes() {
-  const dash = AppState.descartes.resumo;
-  const linhas = AppState.descartes.dados || [];
-  if (!dash) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
-  const f = _filtrosDescartes();
-  const r = dash.resumo;
-  abrirRelatorioA4({
-    titulo: 'Descarte de Parceiros',
-    subtitulo: 'Descartes',
-    tituloTabela: 'Registros de Descarte',
-    parametros: [
-      { label: 'Período', valor: _relPeriodo(f) },
-      { label: 'Parceiro', valor: _relLista(f.parceiros) },
-      { label: 'Motivo', valor: _relLista(f.motivos) }
-    ],
-    resumo: [
-      { label: 'Total Descarte', valor: fmtNum(r.total_descarte) },
-      { label: 'Produção (kg)', valor: fmtKg(r.total_producao_kg) },
-      { label: '% Descarte', valor: r.pct_descarte !== null ? r.pct_descarte + '%' : '—' },
-      { label: 'Parceiros', valor: fmtNum(r.num_parceiros) }
-    ],
-    colunas: ['Data', 'Parceiro', 'Produção (kg)', 'Descarte', 'Motivo', 'Classe'],
-    linhas: linhas.map(x => [
-      fmtDate(x.data), x.parceiro, fmtKg(x.producao_kg), fmtNum(x.descarte), x.motivo || '—', x.classe || '—'
-    ])
+  if (!AppState.descartes.resumo) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
+  _pedirPeriodoRelatorio('fdPeriodo', periodo => {
+    const f = { ..._filtrosDescartes(), data_inicio: periodo.data_inicio, data_fim: periodo.data_fim };
+    showLoading(true);
+    gsCached('listarDescartes', App.token, {}).then(todosRaw => {
+      showLoading(false);
+      const todos  = _comCultura(todosRaw, 'classe');
+      const dash   = _dashboardDescartesJS(todos, f);
+      const linhas = _filtrarDescartesJS(todos, f);
+      const r = dash.resumo;
+      abrirRelatorioA4({
+        titulo: 'Descarte de Parceiros',
+        subtitulo: 'Descartes',
+        tituloTabela: 'Registros de Descarte',
+        parametros: [
+          { label: 'Período', valor: _relPeriodo(f) },
+          { label: 'Parceiro', valor: _relLista(f.parceiros) },
+          { label: 'Motivo', valor: _relLista(f.motivos) }
+        ],
+        resumo: [
+          { label: 'Total Descarte', valor: fmtNum(r.total_descarte) },
+          { label: 'Produção (kg)', valor: fmtKg(r.total_producao_kg) },
+          { label: '% Descarte', valor: r.pct_descarte !== null ? r.pct_descarte + '%' : '—' },
+          { label: 'Parceiros', valor: fmtNum(r.num_parceiros) }
+        ],
+        colunas: ['Data', 'Parceiro', 'Produção (kg)', 'Descarte', 'Motivo', 'Classe'],
+        linhas: linhas.map(x => [
+          fmtDate(x.data), x.parceiro, fmtKg(x.producao_kg), fmtNum(x.descarte), x.motivo || '—', x.classe || '—'
+        ])
+      });
+    }).catch(err => { showLoading(false); toast(err.message, 'error'); });
   });
 }
 </script>
@@ -2749,7 +2889,7 @@ function renderDevolucoesTab() {
       <div class="card"><div class="card-header"><h3 id="vTituloMotivo">Por Motivo</h3></div><div class="card-body"><canvas id="cVMotivo" height="220"></canvas></div></div>
     </div>
     <div class="card">
-      <div class="card-header"><h3 id="vTituloTabela">📋 Devoluções</h3><span class="text-muted" id="vContagem"></span><button class="btn btn-secondary btn-sm" onclick="gerarRelatorioDevolucoes()">🖨️ Relatório</button></div>
+      <div class="card-header"><h3 id="vTituloTabela">📋 Devoluções</h3><span class="text-muted" id="vContagem"></span>${_btnOrdemDataHtml('devolucoes')}<button class="btn btn-secondary btn-sm" onclick="gerarRelatorioDevolucoes()">🖨️ Relatório</button></div>
       <div class="table-wrap table-scroll"><table>
         <thead><tr><th>Data</th><th>Pedido</th><th>Cliente</th><th>Parceiro</th><th>Produto</th><th>Qtde</th><th>Tipo de Unidade</th><th>Kg / Unid</th><th>Motivo</th></tr></thead>
         <tbody id="vTabela"></tbody>
@@ -2851,6 +2991,7 @@ function _fmtConversaoRegistro(r) {
 }
 
 function _renderTabelaDevolucoes(linhas) {
+  linhas = _ordenarPorData(linhas, 'devolucoes');
   document.getElementById('vContagem').textContent = linhas.length + ' registro(s)';
   const tbody = document.getElementById('vTabela');
   if (linhas.length === 0) {
@@ -2872,33 +3013,40 @@ function _renderTabelaDevolucoes(linhas) {
 }
 
 function gerarRelatorioDevolucoes() {
-  const dash = AppState.devolucoes.resumo;
-  const linhas = AppState.devolucoes.dados || [];
-  if (!dash) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
+  if (!AppState.devolucoes.resumo) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
   const ehBonificacao = AppState.devolucoes.modo === 'bonificacoes';
-  const f = _filtrosDevolucoes();
-  const r = dash.resumo;
-  abrirRelatorioA4({
-    titulo: ehBonificacao ? 'Bonificações' : 'Devoluções',
-    subtitulo: ehBonificacao ? 'Bonificações' : 'Devoluções',
-    tituloTabela: 'Registros de ' + (ehBonificacao ? 'Bonificação' : 'Devolução'),
-    parametros: [
-      { label: 'Período', valor: _relPeriodo(f) },
-      { label: 'Parceiro', valor: _relLista(f.parceiros) },
-      { label: 'Cliente', valor: _relLista(f.clientes) },
-      { label: 'Motivo', valor: _relLista(f.motivos) }
-    ],
-    resumo: [
-      { label: 'Registros', valor: fmtNum(r.total_linhas) },
-      { label: 'Quantidade', valor: fmtNum(r.total_quantidade) },
-      { label: 'Total (kg)', valor: fmtKg(r.total_kg) },
-      { label: 'Parceiros', valor: fmtNum(r.num_parceiros) }
-    ],
-    colunas: ['Data', 'Pedido', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo', 'Kg/Unid', 'Motivo'],
-    linhas: linhas.map(x => [
-      fmtDate(x.data), x.numero_pedido || '—', x.cliente || '—', x.parceiro || '—', x.produto,
-      fmtNum(x.quantidade), x.tipo || '—', _fmtConversaoRegistro(x), x.motivo || '—'
-    ])
+  _pedirPeriodoRelatorio('fvPeriodo', periodo => {
+    const f = { ..._filtrosDevolucoes(), data_inicio: periodo.data_inicio, data_fim: periodo.data_fim };
+    const fn = ehBonificacao ? 'listarBonificacoes' : 'listarDevolucoes';
+    showLoading(true);
+    gsCached(fn, App.token, {}).then(todosRaw => {
+      showLoading(false);
+      const dash   = _dashboardRegistroJS(todosRaw, f);
+      const linhas = _filtrarRegistroJS(todosRaw, f);
+      const r = dash.resumo;
+      abrirRelatorioA4({
+        titulo: ehBonificacao ? 'Bonificações' : 'Devoluções',
+        subtitulo: ehBonificacao ? 'Bonificações' : 'Devoluções',
+        tituloTabela: 'Registros de ' + (ehBonificacao ? 'Bonificação' : 'Devolução'),
+        parametros: [
+          { label: 'Período', valor: _relPeriodo(f) },
+          { label: 'Parceiro', valor: _relLista(f.parceiros) },
+          { label: 'Cliente', valor: _relLista(f.clientes) },
+          { label: 'Motivo', valor: _relLista(f.motivos) }
+        ],
+        resumo: [
+          { label: 'Registros', valor: fmtNum(r.total_linhas) },
+          { label: 'Quantidade', valor: fmtNum(r.total_quantidade) },
+          { label: 'Total (kg)', valor: fmtKg(r.total_kg) },
+          { label: 'Parceiros', valor: fmtNum(r.num_parceiros) }
+        ],
+        colunas: ['Data', 'Pedido', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo', 'Kg/Unid', 'Motivo'],
+        linhas: linhas.map(x => [
+          fmtDate(x.data), x.numero_pedido || '—', x.cliente || '—', x.parceiro || '—', x.produto,
+          fmtNum(x.quantidade), x.tipo || '—', _fmtConversaoRegistro(x), x.motivo || '—'
+        ])
+      });
+    }).catch(err => { showLoading(false); toast(err.message, 'error'); });
   });
 }
 </script>
@@ -2966,21 +3114,6 @@ function renderResumoTab() {
         </tr></thead>
         <tbody id="rTabela"></tbody>
       </table></div>
-    </div>
-
-    <div class="modal-overlay" id="modalPeriodoRelatorio">
-      <div class="modal">
-        <div class="modal-header"><h3>🖨️ Gerar Relatório — Período</h3><button class="btn-icon" onclick="fecharModal('modalPeriodoRelatorio')">✕</button></div>
-        <p class="text-muted" style="margin:-4px 0 12px;">Escolha o período que o relatório deve cobrir (Parceiro/Cultura já selecionados na tela continuam valendo). Deixe em branco para "Todo o Histórico".</p>
-        <div class="form-row cols-2">
-          <div class="form-group"><label class="form-label">Data Início</label><input type="date" id="relPeriodoInicio" class="form-control"></div>
-          <div class="form-group"><label class="form-label">Data Fim</label><input type="date" id="relPeriodoFim" class="form-control"></div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="fecharModal('modalPeriodoRelatorio')">Cancelar</button>
-          <button class="btn btn-primary" onclick="_confirmarPeriodoRelatorio()">Gerar Relatório</button>
-        </div>
-      </div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -3077,9 +3210,12 @@ function loadResumo() {
 // pegar o que já está no filtro da tela) — a pessoa pode querer imprimir um período
 // diferente do que está navegando no momento, sem precisar mexer no filtro visível.
 let _relPeriodoCallback = null;
-function _pedirPeriodoRelatorio(callback) {
+// filtroId = id do input de período já visível na tela da aba (ex.: "frPeriodo",
+// "fpPeriodo") — só pra pré-preencher o modal com o que já estava filtrado;
+// passe null/vazio quando a aba não tiver um filtro de período próprio.
+function _pedirPeriodoRelatorio(filtroId, callback) {
   _relPeriodoCallback = callback;
-  const { data_inicio, data_fim } = getDateRangeFilter('frPeriodo');
+  const { data_inicio, data_fim } = filtroId ? getDateRangeFilter(filtroId) : {};
   document.getElementById('relPeriodoInicio').value = data_inicio || '';
   document.getElementById('relPeriodoFim').value = data_fim || '';
   document.getElementById('modalPeriodoRelatorio').classList.add('show');
@@ -3095,7 +3231,7 @@ function _confirmarPeriodoRelatorio() {
 
 function gerarRelatorioResumoParceiros() {
   if (!AppState.resumo.resumo) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
-  _pedirPeriodoRelatorio(periodo => {
+  _pedirPeriodoRelatorio('frPeriodo', periodo => {
     const f = { ..._filtrosResumo(), data_inicio: periodo.data_inicio, data_fim: periodo.data_fim };
     showLoading(true);
     Promise.all([
@@ -3365,6 +3501,7 @@ function renderLancarTab() {
       <div class="card-header">
         <h3>📋 Pedidos Registrados</h3>
         <button class="btn btn-secondary btn-sm" onclick="carregarPedidosRegistrados()">🔄 Atualizar</button>
+        ${_btnOrdemDataHtml('lancar')}
         <button class="btn btn-secondary btn-sm" onclick="gerarRelatorioPedidosRegistrados()">🖨️ Relatório</button>
       </div>
       <div class="card-body">
@@ -3582,7 +3719,7 @@ function carregarPedidosRegistrados() {
       ...pedidos.map(p => ({ ...p, _tipo: 'Pedido' })),
       ...devolucoes.map(d => ({ ...d, _tipo: 'Devolução' })),
       ...bonificacoes.map(b => ({ ...b, _tipo: 'Bonificação' }))
-    ].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
+    ];
     AppState.lancar.registrados = combinados;
     _renderTabelaPedidosRegistrados(combinados);
   }).catch(err => {
@@ -3592,34 +3729,47 @@ function carregarPedidosRegistrados() {
 }
 
 function gerarRelatorioPedidosRegistrados() {
-  const lista = AppState.lancar.registrados || [];
-  if (!lista.length) { toast('Aguarde a tabela carregar antes de gerar o relatório.', 'error'); return; }
-  const totalPedidos = lista.filter(r => r._tipo === 'Pedido').length;
-  const totalDevolucoes = lista.filter(r => r._tipo === 'Devolução').length;
-  const totalBonificacoes = lista.filter(r => r._tipo === 'Bonificação').length;
-  abrirRelatorioA4({
-    titulo: 'Pedidos Registrados',
-    subtitulo: 'Lançamentos',
-    tituloTabela: 'Mapa de Pedidos, Devoluções e Bonificações',
-    parametros: [],
-    resumo: [
-      { label: 'Total de Registros', valor: fmtNum(lista.length) },
-      { label: 'Pedidos', valor: fmtNum(totalPedidos) },
-      { label: 'Devoluções', valor: fmtNum(totalDevolucoes) },
-      { label: 'Bonificações', valor: fmtNum(totalBonificacoes) }
-    ],
-    colunas: ['Tipo', 'Data', 'Nº Pedido', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo Unid.', 'Status/Motivo'],
-    linhas: lista.map(r => {
-      const ehPedido = r._tipo === 'Pedido';
-      const parceiroExibido = ehPedido
-        ? (r.parceiros || []).map(p => `${p.parceiro} (${fmtNum(p.quantidade)})`).join(', ')
-        : (r.parceiro || '');
-      return [
-        r._tipo, fmtDate(r.data), r.numero_pedido || '', r.cliente || '', parceiroExibido || '—',
-        r.produto || '', fmtNum(ehPedido ? r.qtde_solicitada : r.quantidade), r.tipo || '',
-        ehPedido ? (r.status || '') : (r.motivo || '')
-      ];
-    })
+  const listaCompleta = AppState.lancar.registrados || [];
+  if (!listaCompleta.length) { toast('Aguarde a tabela carregar antes de gerar o relatório.', 'error'); return; }
+  // Essa tabela não tem um filtro de período visível na tela (junta 3 abas
+  // sem paginação por data) — o modal parte sempre em branco ("Todo o
+  // Histórico") em vez de vir pré-preenchido.
+  _pedirPeriodoRelatorio(null, periodo => {
+    const { data_inicio, data_fim } = periodo;
+    const lista = listaCompleta.filter(r => {
+      if (data_inicio && !(r.data >= data_inicio)) return false;
+      if (data_fim && !(r.data <= data_fim)) return false;
+      return true;
+    });
+    const totalPedidos = lista.filter(r => r._tipo === 'Pedido').length;
+    const totalDevolucoes = lista.filter(r => r._tipo === 'Devolução').length;
+    const totalBonificacoes = lista.filter(r => r._tipo === 'Bonificação').length;
+    abrirRelatorioA4({
+      titulo: 'Pedidos Registrados',
+      subtitulo: 'Lançamentos',
+      tituloTabela: 'Mapa de Pedidos, Devoluções e Bonificações',
+      parametros: [
+        { label: 'Período', valor: _relPeriodo({ data_inicio, data_fim }) }
+      ],
+      resumo: [
+        { label: 'Total de Registros', valor: fmtNum(lista.length) },
+        { label: 'Pedidos', valor: fmtNum(totalPedidos) },
+        { label: 'Devoluções', valor: fmtNum(totalDevolucoes) },
+        { label: 'Bonificações', valor: fmtNum(totalBonificacoes) }
+      ],
+      colunas: ['Tipo', 'Data', 'Nº Pedido', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo Unid.', 'Status/Motivo'],
+      linhas: lista.map(r => {
+        const ehPedido = r._tipo === 'Pedido';
+        const parceiroExibido = ehPedido
+          ? (r.parceiros || []).map(p => `${p.parceiro} (${fmtNum(p.quantidade)})`).join(', ')
+          : (r.parceiro || '');
+        return [
+          r._tipo, fmtDate(r.data), r.numero_pedido || '', r.cliente || '', parceiroExibido || '—',
+          r.produto || '', fmtNum(ehPedido ? r.qtde_solicitada : r.quantidade), r.tipo || '',
+          ehPedido ? (r.status || '') : (r.motivo || '')
+        ];
+      })
+    });
   });
 }
 
@@ -3629,6 +3779,7 @@ function _lpBadgeTipo(tipo) {
   return '<span class="badge badge-verde">Bonificação</span>';
 }
 function _renderTabelaPedidosRegistrados(lista) {
+  lista = _ordenarPorData(lista, 'lancar');
   const tbody = document.getElementById('listaPedidosRegistrados');
   if (!tbody) return;
   if (!lista.length) {
