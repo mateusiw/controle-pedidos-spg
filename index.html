@@ -334,29 +334,28 @@
       #relatorioImprimir{display:block !important;position:absolute;left:0;top:0;width:100%;}
       @page{size:A4;margin:14mm 12mm;}
     }
-    .rel-doc{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:11px;}
-    .rel-header{display:grid;grid-template-columns:70px 1fr 190px;border:1.5px solid #111;}
-    .rel-header > div{padding:8px 10px;border-right:1.5px solid #111;display:flex;flex-direction:column;justify-content:center;}
-    .rel-header > div:last-child{border-right:none;}
-    .rel-logo{align-items:center;justify-content:center;font-size:32px;text-align:center;}
-    .rel-titulo{text-align:center;align-items:center;}
-    .rel-titulo .t1{color:#b91c1c;font-weight:800;font-size:13px;text-transform:uppercase;}
-    .rel-titulo .t2{color:#1d4ed8;font-weight:700;font-size:12px;margin-top:3px;}
-    .rel-emissao{text-align:center;align-items:center;}
-    .rel-emissao .lbl{font-size:9px;font-weight:700;letter-spacing:.03em;}
-    .rel-emissao .val{color:#b91c1c;font-weight:800;font-size:12px;margin-top:5px;}
-    .rel-sub{border:1.5px solid #111;border-top:none;padding:4px 10px;font-size:10px;font-weight:700;background:#eef1f4;}
-    .rel-secao{border:1.5px solid #111;border-top:none;}
-    .rel-secao-h{background:#dbe3ea;font-weight:800;font-size:10.5px;padding:4px 10px;border-bottom:1.5px solid #111;}
-    .rel-grid{display:grid;}
-    .rel-grid > div{padding:5px 10px;border-right:1px solid #111;border-bottom:1px solid #111;font-size:10px;min-width:0;}
-    .rel-grid > div:last-child{border-right:none;}
-    .rel-grid .lbl{font-weight:700;font-size:8.5px;text-transform:uppercase;color:#333;}
-    .rel-grid .val{color:#1d4ed8;font-weight:700;margin-top:2px;word-break:break-word;}
-    .rel-table{width:100%;border-collapse:collapse;font-size:9.5px;}
-    .rel-table th{background:#dbe3ea;border:1px solid #111;padding:4px 6px;text-align:left;font-size:9px;text-transform:uppercase;}
-    .rel-table td{border:1px solid #111;padding:4px 6px;}
-    .rel-footer{font-size:8.5px;color:#b91c1c;font-style:italic;margin-top:6px;line-height:1.5;}
+    .rel-doc{font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#182420;font-size:11px;}
+    .rel-header{display:grid;grid-template-columns:64px 1fr 180px;align-items:center;gap:16px;padding-bottom:14px;margin-bottom:16px;border-bottom:2.5px solid #087a4a;}
+    .rel-header > div{display:flex;flex-direction:column;justify-content:center;min-width:0;}
+    .rel-logo{align-items:center;justify-content:center;}
+    .rel-titulo{text-align:left;}
+    .rel-titulo .t1{color:#6b7a72;font-weight:800;font-size:8.5px;text-transform:uppercase;letter-spacing:.08em;}
+    .rel-titulo .t2{color:#0f1f16;font-weight:800;font-size:17px;margin-top:3px;letter-spacing:-.2px;}
+    .rel-emissao{text-align:right;align-items:flex-end;}
+    .rel-emissao .lbl{font-size:8px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a968e;}
+    .rel-emissao .val{color:#087a4a;font-weight:800;font-size:12px;margin-top:4px;}
+    .rel-sub{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#087a4a;margin:-8px 0 18px;}
+    .rel-secao{margin-bottom:18px;}
+    .rel-secao-h{font-weight:800;font-size:10.5px;color:#0f1f16;letter-spacing:.01em;margin-bottom:9px;padding-left:9px;border-left:3px solid #087a4a;line-height:1.3;}
+    .rel-grid{display:grid;gap:8px;}
+    .rel-grid > div{background:#f3f7f4;border:1px solid #e1e8e3;border-radius:8px;padding:8px 12px;font-size:10px;min-width:0;}
+    .rel-grid .lbl{font-weight:700;font-size:8.5px;text-transform:uppercase;letter-spacing:.03em;color:#75837b;}
+    .rel-grid .val{color:#0f1f16;font-weight:700;font-size:11.5px;margin-top:3px;word-break:break-word;}
+    .rel-table{width:100%;border-collapse:separate;border-spacing:0;font-size:9.5px;border:1px solid #e1e8e3;border-radius:8px;overflow:hidden;}
+    .rel-table th{background:#087a4a;color:#fff;padding:6px 8px;text-align:left;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+    .rel-table td{padding:5px 8px;border-top:1px solid #e6ebe8;color:#33413a;}
+    .rel-table tbody tr:nth-child(even) td{background:#f6f9f7;}
+    .rel-footer{font-size:8.5px;color:#8a968e;font-style:italic;margin-top:12px;line-height:1.6;border-top:1px solid #e6ebe8;padding-top:10px;}
   </style>
 </head>
 <body>
@@ -2238,13 +2237,13 @@ function gerarRelatorioPedidos() {
           { label: 'Total de Pedidos', valor: fmtNum(r.total_pedidos) },
           { label: 'Solicitado', valor: fmtNum(r.total_solicitado) }
         ],
-        colunas: ['Semana', 'Data', 'Pedido', 'Cliente', 'Produto', 'Solicitado', 'Descartado', 'Aproveitado'],
+        colunas: ['Semana', 'Data', 'Pedido', 'NFe', 'Cliente', 'Produto', 'Solicitado', 'Descartado', 'Aproveitado'],
         linhas: linhas.map(x => {
           const descartado = devolvidoMap[x.numero_pedido + '|' + x.produto] || 0;
           const aproveitado = Math.max(0, x.qtde_solicitada - descartado);
           const pct = x.qtde_solicitada > 0 ? +((aproveitado / x.qtde_solicitada) * 100).toFixed(1) : null;
           return [
-            x.semana ?? '—', fmtDate(x.data), x.numero_pedido, x.cliente, x.produto,
+            x.semana ?? '—', fmtDate(x.data), x.numero_pedido, x.nfe || '—', x.cliente, x.produto,
             fmtQtde(x.qtde_solicitada, x.tipo),
             descartado > 0 ? fmtQtde(descartado, x.tipo) : '—',
             fmtQtde(aproveitado, x.tipo) + (pct != null ? ' (' + pct + '%)' : '')
@@ -2553,9 +2552,9 @@ function gerarRelatorioParceiros() {
           { label: 'Parceiros', valor: fmtNum(r.num_parceiros) },
           { label: 'Pedidos Devolvidos', valor: fmtNum(r.total_pedidos_devolvidos) }
         ],
-        colunas: ['Data', 'Semana', 'Pedido', 'Cliente', 'Parceiro', 'Produto', 'Tipo', 'Quantidade', 'Devolvido'],
+        colunas: ['Data', 'Semana', 'Pedido', 'NFe', 'Cliente', 'Parceiro', 'Produto', 'Tipo', 'Quantidade', 'Devolvido'],
         linhas: linhas.map(x => [
-          fmtDate(x.data), x.semana ?? '—', x.numero_pedido, x.cliente, x.parceiro, x.produto,
+          fmtDate(x.data), x.semana ?? '—', x.numero_pedido, x.nfe || '—', x.cliente, x.parceiro, x.produto,
           x.tipo || '—', fmtNum(x.quantidade), x.devolvido_qtde > 0 ? fmtQtde(x.devolvido_qtde, x.tipo) : '—'
         ])
       });
@@ -3148,9 +3147,9 @@ function gerarRelatorioDevolucoes() {
           { label: 'Total (kg)', valor: fmtKg(r.total_kg) },
           { label: 'Parceiros', valor: fmtNum(r.num_parceiros) }
         ],
-        colunas: ['Data', 'Pedido', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo', 'Kg/Unid', 'Motivo'],
+        colunas: ['Data', 'Pedido', 'NFe', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo', 'Kg/Unid', 'Motivo'],
         linhas: linhas.map(x => [
-          fmtDate(x.data), x.numero_pedido || '—', x.cliente || '—', x.parceiro || '—', x.produto,
+          fmtDate(x.data), x.numero_pedido || '—', x.nfe || '—', x.cliente || '—', x.parceiro || '—', x.produto,
           fmtNum(x.quantidade), x.tipo || '—', _fmtConversaoRegistro(x), x.motivo || '—'
         ])
       });
@@ -3865,14 +3864,14 @@ function gerarRelatorioPedidosRegistrados() {
         { label: 'Devoluções', valor: fmtNum(totalDevolucoes) },
         { label: 'Bonificações', valor: fmtNum(totalBonificacoes) }
       ],
-      colunas: ['Tipo', 'Data', 'Nº Pedido', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo Unid.', 'Status/Motivo'],
+      colunas: ['Tipo', 'Data', 'Nº Pedido', 'NFe', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo Unid.', 'Status/Motivo'],
       linhas: lista.map(r => {
         const ehPedido = r._tipo === 'Pedido';
         const parceiroExibido = ehPedido
           ? (r.parceiros || []).map(p => `${p.parceiro} (${fmtNum(p.quantidade)})`).join(', ')
           : (r.parceiro || '');
         return [
-          r._tipo, fmtDate(r.data), r.numero_pedido || '', r.cliente || '', parceiroExibido || '—',
+          r._tipo, fmtDate(r.data), r.numero_pedido || '', ehPedido ? (r.nfe || '—') : '', r.cliente || '', parceiroExibido || '—',
           r.produto || '', fmtNum(ehPedido ? r.qtde_solicitada : r.quantidade), r.tipo || '',
           ehPedido ? (r.status || '') : (r.motivo || '')
         ];
