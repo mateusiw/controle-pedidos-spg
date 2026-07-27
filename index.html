@@ -1407,6 +1407,20 @@ function renderApp(root) {
         <button class="btn btn-primary" onclick="confirmarTrocarSenha()">Salvar</button>
       </div>
     </div>
+  </div>
+  <div class="modal-overlay" id="modalConfirm">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-header"><h3 id="mcTitulo">Confirmar ação</h3><button class="btn-icon" onclick="_mcResolver(false)">✕</button></div>
+      <p id="mcMensagem" style="margin:0 0 4px;font-size:13px;color:var(--ink-2);line-height:1.5;"></p>
+      <div class="form-group hidden" id="mcCampoGrupo" style="margin-top:12px;">
+        <label class="form-label" id="mcCampoLabel"></label>
+        <input id="mcCampo" type="text" class="form-control">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="_mcResolver(false)">Cancelar</button>
+        <button class="btn btn-primary" id="mcBtnOk" onclick="_mcResolver(true)">Confirmar</button>
+      </div>
+    </div>
   </div>`;
   if (window.lucide) lucide.createIcons();
   applyTheme(localStorage.getItem(THEME_KEY) || '');
@@ -1452,6 +1466,60 @@ function appTab(aba) {
 }
 
 function fecharModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// ── Substitui window.confirm()/window.prompt() (pop-ups nativos do
+// navegador) por um modal no estilo do app — os dois reaproveitam o mesmo
+// #modalConfirm, só mudando se o campo de texto aparece ou não. ──
+let _mcResolve = null;
+function _mcResolver(ok) {
+  document.getElementById('modalConfirm').classList.remove('show');
+  const resolve = _mcResolve;
+  _mcResolve = null;
+  if (!resolve) return;
+  if (!ok) { resolve(null); return; }
+  const comCampo = !document.getElementById('mcCampoGrupo').classList.contains('hidden');
+  if (comCampo) {
+    const valor = document.getElementById('mcCampo').value.trim();
+    resolve(valor || null);
+  } else {
+    resolve(true);
+  }
+}
+// Resolve `true` se confirmar, `null` se cancelar — mesmo formato usado por
+// promptModal(), pra quem chama poder tratar os dois com `if (!resultado) return;`.
+function confirmModal(mensagem, opts = {}) {
+  return new Promise(resolve => {
+    _mcResolve = resolve;
+    document.getElementById('mcTitulo').textContent = opts.titulo || 'Confirmar ação';
+    document.getElementById('mcMensagem').textContent = mensagem;
+    document.getElementById('mcCampoGrupo').classList.add('hidden');
+    const btnOk = document.getElementById('mcBtnOk');
+    btnOk.textContent = opts.textoOk || 'Confirmar';
+    btnOk.className = 'btn ' + (opts.perigo ? 'btn-danger' : 'btn-primary');
+    document.getElementById('modalConfirm').classList.add('show');
+  });
+}
+// Resolve com o texto digitado (string não vazia) ou `null` se cancelar ou
+// deixar em branco.
+function promptModal(mensagem, opts = {}) {
+  return new Promise(resolve => {
+    _mcResolve = resolve;
+    document.getElementById('mcTitulo').textContent = opts.titulo || 'Informe um valor';
+    document.getElementById('mcMensagem').textContent = mensagem;
+    document.getElementById('mcCampoGrupo').classList.remove('hidden');
+    document.getElementById('mcCampoLabel').textContent = opts.label || '';
+    const campo = document.getElementById('mcCampo');
+    campo.type = opts.tipoCampo || 'text';
+    campo.value = '';
+    campo.onkeydown = e => { if (e.key === 'Enter') _mcResolver(true); };
+    const btnOk = document.getElementById('mcBtnOk');
+    btnOk.textContent = opts.textoOk || 'Confirmar';
+    btnOk.className = 'btn btn-primary';
+    document.getElementById('modalConfirm').classList.add('show');
+    setTimeout(() => campo.focus(), 50);
+  });
+}
+
 function abrirTrocarSenha() {
   document.getElementById('tsAtual').value = '';
   document.getElementById('tsNova').value = '';
@@ -3302,8 +3370,8 @@ function renderLancarTab() {
       <div class="card-body">
         <p class="text-muted" style="margin:-4px 0 12px;">Junta os pedidos, devoluções e bonificações já lançados — use a coluna "Tipo" pra distinguir.</p>
         <div class="table-wrap table-scroll" style="max-height:440px;"><table>
-          <thead><tr><th>Tipo</th><th>Data</th><th>Nº Pedido</th><th>Cliente</th><th>Parceiro</th><th>Produto</th><th>Qtde</th><th>Tipo Unid.</th><th>Status/Motivo</th><th></th></tr></thead>
-          <tbody id="listaPedidosRegistrados"><tr><td colspan="10" class="empty-state">Carregando...</td></tr></tbody>
+          <thead><tr><th>Tipo</th><th>Data</th><th>Nº Pedido</th><th>NFe</th><th>Cliente</th><th>Parceiro</th><th>Produto</th><th>Qtde</th><th>Tipo Unid.</th><th>Status/Motivo</th><th></th></tr></thead>
+          <tbody id="listaPedidosRegistrados"><tr><td colspan="11" class="empty-state">Carregando...</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -3341,28 +3409,14 @@ function renderLancarTab() {
           <div class="form-group"><label class="form-label">Produto</label><input id="epProduto" list="dlProdutos" class="form-control" autocomplete="off"></div>
           <div class="form-group"><label class="form-label">Tipo</label><select id="epTipo" class="form-control"><option value="Unidades">Unidades</option><option value="kg">kg</option></select></div>
           <div class="form-group"><label class="form-label">Qtde Solicitada</label><input type="text" id="epQtdeSolicitada" class="form-control num-mask" inputmode="decimal"></div>
-          <div class="form-group"><label class="form-label">Qtde Concluída</label><input type="text" id="epQtdeConcluida" class="form-control num-mask" inputmode="decimal"></div>
-          <div class="form-group"><label class="form-label">Status</label><input id="epStatus" list="dlStatus" class="form-control" autocomplete="off"></div>
         </div>
+        <label class="form-label" style="display:block;margin:4px 0 8px;">Distribuição por parceiro <span style="font-weight:400;opacity:.7;">(opcional)</span></label>
+        <div class="lp-parceiros-lista" id="epParceirosLista"></div>
+        <button type="button" class="btn btn-secondary btn-sm mb-3" onclick="_epAdicionarParceiro()">➕ Adicionar parceiro</button>
         <div class="form-group"><label class="form-label">Observações (opcional)</label><input id="epObs" class="form-control"></div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="fecharModal('modalEditarPedido')">Cancelar</button>
           <button class="btn btn-primary" onclick="salvarEdicaoPedido()">Salvar</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-overlay" id="modalDistribuir">
-      <div class="modal">
-        <div class="modal-header"><h3>🤝 Distribuir para parceiro</h3><button class="btn-icon" onclick="fecharModal('modalDistribuir')">✕</button></div>
-        <p style="font-size:13px;opacity:.75;margin:0 0 12px;">Pedido <strong id="dstNumero"></strong> — <span id="dstClienteProduto"></span></p>
-        <div class="form-row cols-2">
-          <div class="form-group"><label class="form-label">Parceiro</label><input id="dstParceiro" list="dlParceiros" class="form-control" autocomplete="off"></div>
-          <div class="form-group"><label class="form-label">Quantidade</label><input type="text" id="dstQuantidade" class="form-control num-mask" inputmode="decimal"></div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="fecharModal('modalDistribuir')">Cancelar</button>
-          <button class="btn btn-primary" onclick="salvarDistribuicao()">Salvar</button>
         </div>
       </div>
     </div>`;
@@ -3515,7 +3569,7 @@ let _registroEditando = null; // { nomeAba, linha, original:{numero_pedido,data,
 
 function carregarPedidosRegistrados() {
   const tbody = document.getElementById('listaPedidosRegistrados');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Carregando...</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Carregando...</td></tr>';
   Promise.all([
     gs('listarPedidosGerenciar', App.token),
     gs('listarDevolucoesGerenciar', App.token),
@@ -3532,7 +3586,7 @@ function carregarPedidosRegistrados() {
     AppState.lancar.registrados = combinados;
     _renderTabelaPedidosRegistrados(combinados);
   }).catch(err => {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Erro ao carregar.</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Erro ao carregar.</td></tr>';
     toast(err.message, 'error');
   });
 }
@@ -3578,7 +3632,7 @@ function _renderTabelaPedidosRegistrados(lista) {
   const tbody = document.getElementById('listaPedidosRegistrados');
   if (!tbody) return;
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Nenhum registro ainda.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Nenhum registro ainda.</td></tr>';
     return;
   }
   tbody.innerHTML = lista.map(r => {
@@ -3597,6 +3651,7 @@ function _renderTabelaPedidosRegistrados(lista) {
       <td>${_lpBadgeTipo(r._tipo)}</td>
       <td>${fmtDate(r.data)}</td>
       <td><strong>${r.numero_pedido || ''}</strong></td>
+      <td>${ehPedido ? (r.nfe || '—') : ''}</td>
       <td>${r.cliente || ''}</td>
       <td>${parceiroExibido || '—'}</td>
       <td>${r.produto || ''}</td>
@@ -3604,7 +3659,6 @@ function _renderTabelaPedidosRegistrados(lista) {
       <td>${r.tipo || ''}</td>
       <td>${ehPedido ? (r.status || '') : (r.motivo || '')}</td>
       <td style="white-space:nowrap;">
-        ${ehPedido ? `<button class="btn-icon" title="Distribuir para parceiro" onclick="abrirDistribuir(${r.linha})">🤝</button>` : ''}
         <button class="btn-icon" title="Editar" onclick="${editarOnclick}">✏️</button>
         <button class="btn-icon" title="Excluir" onclick="${excluirOnclick}">🗑️</button>
       </td>
@@ -3657,12 +3711,13 @@ function salvarEdicaoRegistro() {
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
-function excluirRegistroRegistrado(nomeAba, linha) {
+async function excluirRegistroRegistrado(nomeAba, linha) {
   const lista = nomeAba === 'Devoluções' ? AppState.lancar.devolucoes : AppState.lancar.bonificacoes;
   const r = (lista || []).find(x => x.linha === linha);
   if (!r) { toast('Registro não encontrado — atualize a tabela e tente de novo.', 'error'); return; }
   const tipoLabel = nomeAba === 'Devoluções' ? 'devolução' : 'bonificação';
-  if (!confirm('Excluir esta ' + tipoLabel + ' de ' + r.cliente + ' (' + r.produto + ')? Essa ação não pode ser desfeita.')) return;
+  const ok = await confirmModal('Excluir esta ' + tipoLabel + ' de ' + r.cliente + ' (' + r.produto + ')? Essa ação não pode ser desfeita.', { titulo: 'Excluir registro', textoOk: 'Excluir', perigo: true });
+  if (!ok) return;
   showLoading(true);
   gs('excluirRegistroLinha', App.token, nomeAba, r.linha, { numero_pedido: r.numero_pedido, data: r.data, produto: r.produto }).then(() => {
     showLoading(false);
@@ -3675,7 +3730,15 @@ function excluirRegistroRegistrado(nomeAba, linha) {
 function abrirEditarPedido(linha) {
   const p = (AppState.lancar.pedidos || []).find(x => x.linha === linha);
   if (!p) { toast('Pedido não encontrado — atualize a tabela e tente de novo.', 'error'); return; }
-  _pedidoEditando = { linha: p.linha, numero_pedido_original: p.numero_pedido };
+  // Qtde Concluída e Status não aparecem mais neste modal, mas precisam ser
+  // reenviados do jeito que já estavam — senão editarPedidoLinha zera os dois.
+  _pedidoEditando = {
+    linha: p.linha,
+    numero_pedido_original: p.numero_pedido,
+    produto_original: p.produto,
+    qtde_concluida: p.qtde_concluida,
+    status: p.status
+  };
   document.getElementById('epData').value = p.data;
   document.getElementById('epSemana').value = p.semana;
   document.getElementById('epNumero').value = p.numero_pedido;
@@ -3684,10 +3747,45 @@ function abrirEditarPedido(linha) {
   document.getElementById('epProduto').value = p.produto;
   document.getElementById('epTipo').value = p.tipo === 'kg' ? 'kg' : 'Unidades';
   _setNumVal(document.getElementById('epQtdeSolicitada'), p.qtde_solicitada);
-  _setNumVal(document.getElementById('epQtdeConcluida'), p.qtde_concluida);
-  document.getElementById('epStatus').value = p.status;
   document.getElementById('epObs').value = p.observacoes;
+  document.getElementById('epParceirosLista').innerHTML = '';
+  _epParceiroSeq = 0;
+  if ((p.parceiros || []).length) {
+    p.parceiros.forEach(pp => _epAdicionarParceiro(pp.parceiro, pp.quantidade));
+  } else {
+    _epAdicionarParceiro();
+  }
   document.getElementById('modalEditarPedido').classList.add('show');
+}
+
+// ── Distribuição por parceiro dentro do próprio modal "Editar Pedido" —
+// antes era um modal separado ("Distribuir para parceiro"), agora fica
+// junto pra pessoa editar tudo do pedido num só lugar. ──
+let _epParceiroSeq = 0;
+function _epParceiroLinhaHtml(rowId) {
+  return `
+  <div class="form-row" data-row-id="${rowId}" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 130px 36px;gap:0 10px;align-items:end;">
+    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Parceiro</label><input list="dlParceiros" class="form-control ep-parceiro-nome" autocomplete="off"></div>
+    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Quantidade</label><input type="text" class="form-control num-mask ep-parceiro-qtde" inputmode="decimal"></div>
+    <button type="button" class="btn-icon" title="Remover esta linha" onclick="_epRemoverParceiro(${rowId})" style="margin-bottom:1px;">🗑️</button>
+  </div>`;
+}
+function _epAdicionarParceiro(nome, qtde) {
+  const rowId = ++_epParceiroSeq;
+  const container = document.getElementById('epParceirosLista');
+  if (!container) return;
+  container.insertAdjacentHTML('beforeend', _epParceiroLinhaHtml(rowId));
+  const row = container.querySelector(`[data-row-id="${rowId}"]`);
+  if (nome) row.querySelector('.ep-parceiro-nome').value = nome;
+  if (qtde) _setNumVal(row.querySelector('.ep-parceiro-qtde'), qtde);
+  _comboAttachAll(row);
+  _maskNumeroAll(row);
+}
+function _epRemoverParceiro(rowId) {
+  const container = document.getElementById('epParceirosLista');
+  if (!container) return;
+  const row = container.querySelector(`[data-row-id="${rowId}"]`);
+  if (row) row.remove();
 }
 
 function _epAtualizarSemana() {
@@ -3709,73 +3807,52 @@ function salvarEdicaoPedido() {
     produto:          document.getElementById('epProduto').value.trim(),
     tipo:             document.getElementById('epTipo').value,
     qtde_solicitada:  _numVal(document.getElementById('epQtdeSolicitada')),
-    qtde_concluida:   _numVal(document.getElementById('epQtdeConcluida')),
-    status:           document.getElementById('epStatus').value.trim(),
+    qtde_concluida:   _pedidoEditando.qtde_concluida,
+    status:           _pedidoEditando.status,
     observacoes:      document.getElementById('epObs').value.trim()
   };
   if (!dados.data || !dados.numero_pedido || !dados.cliente || !dados.produto || !(Number(dados.qtde_solicitada) > 0)) {
     toast('Preencha Data, Número do Pedido, Cliente, Produto e uma Qtde Solicitada maior que zero.', 'error');
     return;
   }
+  const parceiros = Array.from(document.querySelectorAll('#epParceirosLista [data-row-id]')).map(row => ({
+    parceiro: row.querySelector('.ep-parceiro-nome').value.trim(),
+    quantidade: _numVal(row.querySelector('.ep-parceiro-qtde'))
+  })).filter(p => p.parceiro && p.quantidade > 0);
+
   showLoading(true);
-  gs('editarPedidoLinha', App.token, _pedidoEditando.linha, _pedidoEditando.numero_pedido_original, dados).then(() => {
-    showLoading(false);
-    toast('Pedido atualizado com sucesso.', 'success');
-    fecharModal('modalEditarPedido');
-    _pedidoEditando = null;
-    _lpInvalidarCaches(['pedidos', 'parceiros', 'resumo']);
-    carregarPedidosRegistrados();
-  }).catch(err => { showLoading(false); toast(err.message, 'error'); });
+  gs('editarPedidoLinha', App.token, _pedidoEditando.linha, _pedidoEditando.numero_pedido_original, dados)
+    .then(() => gs('salvarDistribuicaoPedido', App.token, {
+      numero_pedido_original: _pedidoEditando.numero_pedido_original,
+      produto_original: _pedidoEditando.produto_original,
+      numero_pedido: dados.numero_pedido,
+      produto: dados.produto,
+      cliente: dados.cliente,
+      tipo: dados.tipo,
+      semana: dados.semana,
+      parceiros
+    }))
+    .then(() => {
+      showLoading(false);
+      toast('Pedido atualizado com sucesso.', 'success');
+      fecharModal('modalEditarPedido');
+      _pedidoEditando = null;
+      _lpInvalidarCaches(['pedidos', 'parceiros', 'resumo']);
+      carregarPedidosRegistrados();
+    }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
-function excluirPedidoRegistrado(linha) {
+async function excluirPedidoRegistrado(linha) {
   const p = (AppState.lancar.pedidos || []).find(x => x.linha === linha);
   if (!p) { toast('Pedido não encontrado — atualize a tabela e tente de novo.', 'error'); return; }
-  if (!confirm('Excluir o pedido ' + p.numero_pedido + ' (' + p.produto + ') de ' + p.cliente + '? Essa ação não pode ser desfeita.')) return;
+  const ok = await confirmModal('Excluir o pedido ' + p.numero_pedido + ' (' + p.produto + ') de ' + p.cliente + '? Essa ação não pode ser desfeita.', { titulo: 'Excluir pedido', textoOk: 'Excluir', perigo: true });
+  if (!ok) return;
   showLoading(true);
   gs('excluirPedidoLinha', App.token, p.linha, p.numero_pedido).then(() => {
     showLoading(false);
     toast('Pedido excluído.', 'success');
     _lpInvalidarCaches(['pedidos', 'parceiros', 'resumo']);
     carregarPedidosRegistrados();
-  }).catch(err => { showLoading(false); toast(err.message, 'error'); });
-}
-
-// Completa depois a distribuição por parceiro de um pedido que foi
-// registrado sem parceiro — abre um mini formulário só com Parceiro e
-// Quantidade, já com Cliente/Produto/Semana travados no contexto do pedido.
-let _distribuindoPedido = null;
-function abrirDistribuir(linha) {
-  const p = (AppState.lancar.pedidos || []).find(x => x.linha === linha);
-  if (!p) { toast('Pedido não encontrado — atualize a tabela e tente de novo.', 'error'); return; }
-  _distribuindoPedido = p;
-  document.getElementById('dstNumero').textContent = p.numero_pedido;
-  document.getElementById('dstClienteProduto').textContent = p.cliente + ' — ' + p.produto + ' (' + fmtNum(p.qtde_solicitada) + ' ' + p.tipo + ')';
-  document.getElementById('dstParceiro').value = '';
-  document.getElementById('dstQuantidade').value = '';
-  document.getElementById('modalDistribuir').classList.add('show');
-}
-
-function salvarDistribuicao() {
-  if (!_distribuindoPedido) return;
-  const p = _distribuindoPedido;
-  const parceiro = document.getElementById('dstParceiro').value.trim();
-  const quantidade = _numVal(document.getElementById('dstQuantidade'));
-  if (!parceiro || !(quantidade > 0)) {
-    toast('Preencha o Parceiro e uma Quantidade maior que zero.', 'error');
-    return;
-  }
-  showLoading(true);
-  gs('adicionarDistribuicao', App.token, {
-    numero_pedido: p.numero_pedido, cliente: p.cliente, produto: p.produto,
-    tipo: p.tipo, semana: p.semana, parceiro, quantidade
-  }).then(() => {
-    showLoading(false);
-    toast('Parceiro distribuído com sucesso.', 'success');
-    fecharModal('modalDistribuir');
-    _distribuindoPedido = null;
-    _lpInvalidarCaches(['pedidos', 'parceiros', 'resumo']);
-    loadLancarOpcoes();
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
@@ -4416,8 +4493,8 @@ function toggleUsuarioAdmin(id, ativo) {
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
-function resetSenhaAdmin(id, nome) {
-  const nova = prompt('Nova senha para ' + nome + ':');
+async function resetSenhaAdmin(id, nome) {
+  const nova = await promptModal('Digite a nova senha para ' + nome + '.', { titulo: 'Redefinir senha', label: 'Nova senha', tipoCampo: 'password', textoOk: 'Redefinir' });
   if (!nova) return;
   showLoading(true);
   gs('redefinirSenhaUsuario', App.token, id, nova).then(() => {
