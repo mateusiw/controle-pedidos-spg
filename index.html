@@ -329,9 +329,15 @@
        assim window.print() gera só o relatório, do jeito de um PDF pronto. */
     #relatorioImprimir{display:none;}
     @media print{
-      body *{visibility:hidden;}
-      #relatorioImprimir, #relatorioImprimir *{visibility:visible;}
-      #relatorioImprimir{display:block !important;position:absolute;left:0;top:0;width:100%;}
+      /* display:none (não visibility:hidden) nos irmãos do relatório — visibility
+         mantém o elemento no fluxo normal do documento (só fica invisível), então
+         a altura enorme do dashboard escondido (#appRoot) continuava contando pra
+         paginação da impressão e gerava página(s) extra em branco depois do
+         relatório, principalmente quando ele tinha pouco conteúdo. display:none
+         remove esses irmãos do fluxo por completo, então só a altura real do
+         relatório define quantas páginas saem. */
+      body > *{display:none !important;}
+      #relatorioImprimir{display:block !important;}
       @page{size:A4;margin:9mm 7mm;}
     }
     .rel-doc{font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#182420;font-size:11px;width:100%;}
@@ -2990,7 +2996,7 @@ function renderDevolucoesTab() {
     <div class="card">
       <div class="card-header"><h3 id="vTituloTabela">📋 Devoluções</h3><span class="text-muted" id="vContagem"></span>${_btnOrdemDataHtml('devolucoes')}<button class="btn btn-secondary btn-sm" onclick="gerarRelatorioDevolucoes()">🖨️ Relatório</button></div>
       <div class="table-wrap table-scroll"><table>
-        <thead><tr><th>Data</th><th>Pedido</th><th>Cliente</th><th>Parceiro</th><th>Produto</th><th>Qtde</th><th>Tipo de Unidade</th><th>Kg / Unid</th><th>Motivo</th></tr></thead>
+        <thead><tr><th>Data do Pedido</th><th>Data do Registro</th><th>Pedido</th><th>Cliente</th><th>Parceiro</th><th>Produto</th><th>Qtde</th><th>Tipo de Unidade</th><th>Kg / Unid</th><th>Motivo</th></tr></thead>
         <tbody id="vTabela"></tbody>
       </table></div>
     </div>`;
@@ -3094,11 +3100,12 @@ function _renderTabelaDevolucoes(linhas) {
   document.getElementById('vContagem').textContent = linhas.length + ' registro(s)';
   const tbody = document.getElementById('vTabela');
   if (linhas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Nenhum registro encontrado para os filtros atuais.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Nenhum registro encontrado para os filtros atuais.</td></tr>';
     return;
   }
   tbody.innerHTML = linhas.map(r => `
     <tr>
+      <td>${fmtDate(r.data_pedido)}</td>
       <td>${fmtDate(r.data)}</td>
       <td>${r.numero_pedido || '—'}</td>
       <td>${r.cliente || '—'}</td>
@@ -3139,9 +3146,9 @@ function gerarRelatorioDevolucoes() {
           { label: 'Total (kg)', valor: fmtKg(r.total_kg) },
           { label: 'Parceiros', valor: fmtNum(r.num_parceiros) }
         ],
-        colunas: ['Data', 'Pedido', 'NFe', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo', 'Kg/Unid', 'Motivo'],
+        colunas: ['Data do Pedido', 'Data do Registro', 'Pedido', 'NFe', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo', 'Kg/Unid', 'Motivo'],
         linhas: linhas.map(x => [
-          fmtDate(x.data), x.numero_pedido || '—', x.nfe || '—', x.cliente || '—', x.parceiro || '—', x.produto,
+          fmtDate(x.data_pedido), fmtDate(x.data), x.numero_pedido || '—', x.nfe || '—', x.cliente || '—', x.parceiro || '—', x.produto,
           fmtNum(x.quantidade), x.tipo || '—', _fmtConversaoRegistro(x), x.motivo || '—'
         ])
       });
