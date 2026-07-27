@@ -771,6 +771,24 @@ function _dashboardParceirosJS(todos, f) {
   };
 }
 
+// Uma linha por Parceiro + Produto: quanto vendeu daquele produto específico
+// (unidades e kg, vindo de Distribuição Parceiros) e, ao lado, o total geral
+// comprado do parceiro (kgCompradoPorParceiro, vindo de Entregas Parceiros) —
+// repetido em cada linha porque Entregas não separa por produto/embalagem.
+function _resumoParceiroProdutoJS(linhas, kgCompradoPorParceiro) {
+  const mapa = {};
+  linhas.forEach(r => {
+    if (!r.parceiro || !r.produto) return;
+    const chave = r.parceiro + '|' + r.produto;
+    if (!mapa[chave]) mapa[chave] = { parceiro: r.parceiro, produto: r.produto, tipo: r.tipo, qtde: 0, kg: 0 };
+    mapa[chave].qtde += r.quantidade;
+    mapa[chave].kg   += r.kg;
+  });
+  return Object.values(mapa)
+    .map(x => ({ ...x, kg: +x.kg.toFixed(2), kg_comprado: +((kgCompradoPorParceiro[x.parceiro] || 0)).toFixed(2) }))
+    .sort((a, b) => a.parceiro.localeCompare(b.parceiro) || b.kg - a.kg);
+}
+
 // ── Entregas ─────────────────────────────────────────────────
 function _filtrarEntregasJS(rows, f) {
   let dados = _filtrarPorData(rows, f, 'dia');
@@ -2284,6 +2302,14 @@ function renderParceirosTab() {
         <tbody id="aResumoParceiro"></tbody>
       </table></div>
     </div>
+    <div class="card mb-3">
+      <div class="card-header"><h3>🏷️ Resumo por Parceiro e Produto</h3><span class="text-muted" id="apContagem"></span><button class="btn btn-secondary btn-sm" onclick="gerarRelatorioParceiroProduto()">🖨️ Relatório</button></div>
+      <div class="table-wrap table-scroll" style="max-height:400px;"><table>
+        <thead><tr><th>Parceiro</th><th>Produto</th><th>Qtde Vendida</th><th>Kg Vendido</th><th>Kg Comprado do Parceiro</th></tr></thead>
+        <tbody id="aResumoParceiroProduto"></tbody>
+      </table></div>
+      <p class="text-muted" style="padding:8px 20px 14px;">Qtde/Kg Vendido = distribuído para pedidos daquele produto específico (aba "Distribuição Parceiros"). Kg Comprado do Parceiro = total entregue pelo parceiro no período (aba "Entregas Parceiros"), somando todas as culturas — não dá pra separar por produto/embalagem porque a entrega não é registrada nesse nível de detalhe.</p>
+    </div>
     <div class="card">
       <div class="card-header"><h3>📋 Distribuição — Registros</h3><span class="text-muted" id="aContagem"></span>${_btnOrdemDataHtml('parceiros')}<button class="btn btn-secondary btn-sm" onclick="gerarRelatorioParceiros()">🖨️ Relatório</button></div>
       <div class="table-wrap table-scroll"><table>
@@ -2326,8 +2352,9 @@ function loadParceiros() {
   showLoading(true);
   Promise.all([
     gsCached('listarDistribuicaoParceiros', App.token, {}),
-    gsCached('listarDevolucoes', App.token, {})
-  ]).then(([todosRaw, devolucoesRaw]) => {
+    gsCached('listarDevolucoes', App.token, {}),
+    gsCached('listarEntregas', App.token, {})
+  ]).then(([todosRaw, devolucoesRaw, entregasRaw]) => {
     showLoading(false);
     const todos = _comCultura(todosRaw, 'produto');
     // O campo "devolvido" que vinha pronto do servidor era baseado no Status
@@ -2346,6 +2373,17 @@ function loadParceiros() {
     const linhas = _filtrarDistribuicaoJS(todos, f);
     AppState.parceiros.resumo = dash;
     AppState.parceiros.dados  = linhas;
+
+    // Kg Comprado do Parceiro = total entregue (Entregas Parceiros) no mesmo
+    // período/parceiro(s) filtrados na tela — Entregas não tem Cliente/Produto
+    // pra cruzar com esses outros filtros, então só período e parceiro valem aqui.
+    const entregasFiltradas = _filtrarPorLista(_filtrarPorData(entregasRaw || [], f, 'dia'), f.parceiros, 'parceiro');
+    const kgCompradoPorParceiro = {};
+    entregasFiltradas.forEach(r => {
+      kgCompradoPorParceiro[r.parceiro] = (kgCompradoPorParceiro[r.parceiro] || 0) + Number(r.peso_kg || 0);
+    });
+    const resumoParceiroProduto = _resumoParceiroProdutoJS(linhas, kgCompradoPorParceiro);
+
     populateMultiSelect('faParceiro', dash.filtros.parceiros, f.parceiros, loadParceiros);
     populateMultiSelect('faCliente',  dash.filtros.clientes,  f.clientes,  loadParceiros);
     populateMultiSelect('faProduto',  dash.filtros.produtos,  f.produtos,  loadParceiros);
@@ -2353,8 +2391,26 @@ function loadParceiros() {
     _renderKpisParceiros(dash.resumo);
     _renderChartsParceiros(dash);
     _renderResumoParceiros(dash.porParceiro);
+    _renderResumoParceiroProduto(resumoParceiroProduto);
     _renderTabelaParceiros(linhas);
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
+}
+
+function _renderResumoParceiroProduto(lista) {
+  document.getElementById('apContagem').textContent = lista.length + ' item(ns)';
+  const tbody = document.getElementById('aResumoParceiroProduto');
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Nenhum registro encontrado para os filtros atuais.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lista.map(r => `
+    <tr>
+      <td><strong>${r.parceiro}</strong></td>
+      <td><span class="badge badge-${corProduto(r.produto)}">${r.produto}</span></td>
+      <td>${fmtQtde(r.qtde, r.tipo)}</td>
+      <td>${fmtKg(r.kg)}</td>
+      <td>${fmtKg(r.kg_comprado)}</td>
+    </tr>`).join('');
 }
 
 function _renderKpisParceiros(r) {
@@ -2493,6 +2549,50 @@ function gerarRelatorioParceiros() {
         linhas: linhas.map(x => [
           fmtDate(x.data), x.semana ?? '—', x.numero_pedido, x.cliente, x.parceiro, x.produto,
           x.tipo || '—', fmtNum(x.quantidade), x.devolvido_qtde > 0 ? fmtQtde(x.devolvido_qtde, x.tipo) : '—'
+        ])
+      });
+    }).catch(err => { showLoading(false); toast(err.message, 'error'); });
+  });
+}
+
+function gerarRelatorioParceiroProduto() {
+  if (!AppState.parceiros.resumo) { toast('Aguarde os dados carregarem antes de gerar o relatório.', 'error'); return; }
+  _pedirPeriodoRelatorio('faPeriodo', periodo => {
+    const f = { ..._filtrosParceiros(), data_inicio: periodo.data_inicio, data_fim: periodo.data_fim };
+    showLoading(true);
+    Promise.all([
+      gsCached('listarDistribuicaoParceiros', App.token, {}),
+      gsCached('listarEntregas', App.token, {})
+    ]).then(([todosRaw, entregasRaw]) => {
+      showLoading(false);
+      const todos  = _comCultura(todosRaw, 'produto');
+      const linhas = _filtrarDistribuicaoJS(todos, f);
+      const entregasFiltradas = _filtrarPorLista(_filtrarPorData(entregasRaw || [], f, 'dia'), f.parceiros, 'parceiro');
+      const kgCompradoPorParceiro = {};
+      entregasFiltradas.forEach(r => {
+        kgCompradoPorParceiro[r.parceiro] = (kgCompradoPorParceiro[r.parceiro] || 0) + Number(r.peso_kg || 0);
+      });
+      const lista = _resumoParceiroProdutoJS(linhas, kgCompradoPorParceiro);
+      const totalKgVendido = lista.reduce((s, x) => s + x.kg, 0);
+      const totalKgComprado = Object.values(kgCompradoPorParceiro).reduce((s, v) => s + v, 0);
+      abrirRelatorioA4({
+        titulo: 'Resumo por Parceiro e Produto',
+        subtitulo: 'Parceiros',
+        tituloTabela: 'Vendido por Produto x Comprado do Parceiro',
+        parametros: [
+          { label: 'Período', valor: _relPeriodo(f) },
+          { label: 'Parceiro', valor: _relLista(f.parceiros) },
+          { label: 'Produto', valor: _relLista(f.produtos) }
+        ],
+        resumo: [
+          { label: 'Parceiros', valor: fmtNum(new Set(lista.map(x => x.parceiro)).size) },
+          { label: 'Produtos', valor: fmtNum(new Set(lista.map(x => x.produto)).size) },
+          { label: 'Total Kg Vendido', valor: fmtKg(totalKgVendido) },
+          { label: 'Total Kg Comprado', valor: fmtKg(totalKgComprado) }
+        ],
+        colunas: ['Parceiro', 'Produto', 'Qtde Vendida', 'Kg Vendido', 'Kg Comprado do Parceiro'],
+        linhas: lista.map(x => [
+          x.parceiro, x.produto, fmtQtde(x.qtde, x.tipo), fmtKg(x.kg), fmtKg(x.kg_comprado)
         ])
       });
     }).catch(err => { showLoading(false); toast(err.message, 'error'); });
