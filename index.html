@@ -1667,6 +1667,10 @@ function renderPedidosTab() {
       <p class="text-muted" style="padding:8px 20px 14px;">Kg = quantidade × peso indicado no nome do produto (ex.: "Pepino 280g" = pacote de 280g, mesmo contendo várias unidades dentro). Produtos já vendidos em kg (ex.: Brócolis In Natura) usam o valor direto, com a quantidade de unidades estimada (≈) a partir do peso médio real da aba "Entregas Parceiros". Itens sem peso identificável no nome aparecem como "—".</p>
     </div>`;
   initDateRangePicker('fpPeriodo', loadPedidos);
+  // Alguns navegadores preenchem sozinhos um <input type="text"> assim que ele
+  // entra no DOM (autofill "adivinhado" por histórico), mesmo com
+  // autocomplete="off" — força vazio de novo logo depois de montar a tela.
+  setTimeout(() => { const el = document.getElementById('fpNfe'); if (el) el.value = ''; }, 0);
 }
 
 const _debouncedLoadPedidos = _debounce(loadPedidos, 300);
@@ -2320,6 +2324,10 @@ function renderParceirosTab() {
     </div>`;
   initDateRangePicker('faPeriodo', loadParceiros);
   _atualizarBotoesGranularidade();
+  // Alguns navegadores preenchem sozinhos um <input type="text"> assim que ele
+  // entra no DOM (autofill "adivinhado" por histórico), mesmo com
+  // autocomplete="off" — força vazio de novo logo depois de montar a tela.
+  setTimeout(() => { const el = document.getElementById('faNfe'); if (el) el.value = ''; }, 0);
 }
 
 const _debouncedLoadParceiros = _debounce(loadParceiros, 300);
