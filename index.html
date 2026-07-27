@@ -3848,7 +3848,7 @@ async function excluirPedidoRegistrado(linha) {
   const ok = await confirmModal('Excluir o pedido ' + p.numero_pedido + ' (' + p.produto + ') de ' + p.cliente + '? Essa ação não pode ser desfeita.', { titulo: 'Excluir pedido', textoOk: 'Excluir', perigo: true });
   if (!ok) return;
   showLoading(true);
-  gs('excluirPedidoLinha', App.token, p.linha, p.numero_pedido).then(() => {
+  gs('excluirPedidoLinha', App.token, p.linha, p.numero_pedido, p.produto).then(() => {
     showLoading(false);
     toast('Pedido excluído.', 'success');
     _lpInvalidarCaches(['pedidos', 'parceiros', 'resumo']);
