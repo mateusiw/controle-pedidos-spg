@@ -1641,7 +1641,7 @@ function renderPedidosTab() {
           </div>
           <div class="filter-item" style="min-width:160px;">
             <label class="form-label">NFe</label>
-            <input type="text" id="fpNfe" class="form-control" placeholder="Buscar por NFe" oninput="_debouncedLoadPedidos()">
+            <input type="text" id="fpNfe" class="form-control" placeholder="Buscar por NFe" autocomplete="off" oninput="_debouncedLoadPedidos()">
           </div>
           ${msFilterHtml('fpCliente', 'Cliente')}
           ${msFilterHtml('fpProduto', 'Produto')}
@@ -2265,7 +2265,7 @@ function renderParceirosTab() {
           </div>
           <div class="filter-item" style="min-width:160px;">
             <label class="form-label">NFe</label>
-            <input type="text" id="faNfe" class="form-control" placeholder="Buscar por NFe" oninput="_debouncedLoadParceiros()">
+            <input type="text" id="faNfe" class="form-control" placeholder="Buscar por NFe" autocomplete="off" oninput="_debouncedLoadParceiros()">
           </div>
           ${msFilterHtml('faParceiro', 'Parceiro')}
           ${msFilterHtml('faCliente', 'Cliente')}
@@ -3548,7 +3548,7 @@ function renderLancarTab() {
           <div class="form-group"><label class="form-label">Data</label><input type="date" id="lpData" class="form-control" onchange="_lpAtualizarSemana();_lpGerarNumeroPedido();"></div>
           <div class="form-group"><label class="form-label">Semana</label><input type="number" id="lpSemana" class="form-control" placeholder="Calculada pela data"></div>
           <div class="form-group"><label class="form-label">Número do Pedido (gerado automaticamente)</label><input id="lpNumero" class="form-control" readonly style="background:var(--surface-2);cursor:default;"></div>
-          <div class="form-group"><label class="form-label">NFe (opcional)</label><input id="lpNfe" class="form-control"></div>
+          <div class="form-group"><label class="form-label">NFe (opcional)</label><input id="lpNfe" class="form-control" autocomplete="off"></div>
           <div class="form-group"><label class="form-label">Cliente</label><input id="lpCliente" list="dlClientes" class="form-control" autocomplete="off" oninput="_lpGerarNumeroPedido()"></div>
         </div>
 
@@ -3641,7 +3641,7 @@ function renderLancarTab() {
           <div class="form-group"><label class="form-label">Data</label><input type="date" id="epData" class="form-control" onchange="_epAtualizarSemana()"></div>
           <div class="form-group"><label class="form-label">Semana</label><input type="number" id="epSemana" class="form-control"></div>
           <div class="form-group"><label class="form-label">Número do Pedido</label><input id="epNumero" class="form-control" readonly style="background:var(--surface-2);cursor:default;"></div>
-          <div class="form-group"><label class="form-label">NFe (opcional)</label><input id="epNfe" class="form-control"></div>
+          <div class="form-group"><label class="form-label">NFe (opcional)</label><input id="epNfe" class="form-control" autocomplete="off"></div>
           <div class="form-group"><label class="form-label">Cliente</label><input id="epCliente" list="dlClientes" class="form-control" autocomplete="off"></div>
           <div class="form-group"><label class="form-label">Produto</label><input id="epProduto" list="dlProdutos" class="form-control" autocomplete="off"></div>
           <div class="form-group"><label class="form-label">Tipo</label><select id="epTipo" class="form-control"><option value="Unidades">Unidades</option><option value="kg">kg</option></select></div>
