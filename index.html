@@ -119,6 +119,35 @@
     .form-label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:5px;letter-spacing:.05em;}
     .form-control{width:100%;padding:9px 12px;border:1.5px solid var(--line-strong);border-radius:12px;font-size:13px;background:var(--surface-2);color:var(--ink);outline:none;transition:border-color .15s,box-shadow .15s,background .15s;}
     .form-control:focus{border-color:var(--brand);background:var(--surface);box-shadow:0 0 0 3px var(--brand-soft);}
+    /* Campos calculados/vinculados pelo sistema precisam parecer diferentes
+       dos campos editáveis para não induzir a pessoa a tentar preenchê-los. */
+    .form-control.form-control-auto{
+      background:var(--brand-soft);
+      border-color:var(--line-strong);
+      border-style:solid;
+      box-shadow:none;
+      color:var(--ink);
+      cursor:not-allowed;
+      font-weight:700;
+    }
+    .form-control.form-control-auto:focus{
+      background:var(--brand-soft);
+      border-color:var(--line-strong);
+      box-shadow:none;
+    }
+    .auto-badge{
+      display:inline-flex;
+      align-items:center;
+      margin-left:6px;
+      padding:2px 6px;
+      border-radius:999px;
+      background:var(--brand-soft);
+      color:var(--brand);
+      font-size:8px;
+      font-weight:800;
+      letter-spacing:.04em;
+      vertical-align:1px;
+    }
     .form-row{display:grid;gap:0 14px;}
     .form-row.cols-2{grid-template-columns:1fr 1fr;}
     @media(max-width:640px){.form-row.cols-2{grid-template-columns:1fr;}}
@@ -3551,11 +3580,15 @@ function renderLancarTab() {
           Lança o pedido em "Controle de Pedidos" (uma linha por produto) e já vincula quem vai atender em "Distribuição Parceiros" — um mesmo produto pode ser dividido entre vários parceiros, igual já era feito na planilha.
         </p>
         <div class="form-row cols-2">
-          <div class="form-group"><label class="form-label">Data</label><input type="date" id="lpData" class="form-control" onchange="_lpAtualizarSemana();_lpGerarNumeroPedido();"></div>
-          <div class="form-group"><label class="form-label">Semana</label><input type="number" id="lpSemana" class="form-control" placeholder="Calculada pela data"></div>
-          <div class="form-group"><label class="form-label">Número do Pedido (gerado automaticamente)</label><input id="lpNumero" class="form-control" readonly style="background:var(--surface-2);cursor:default;"></div>
+          <div class="form-group"><label class="form-label">Data</label><input type="date" id="lpData" class="form-control" onchange="_lpAtualizarSemana()"></div>
+          <div class="form-group"><label class="form-label">Semana <span class="auto-badge">🔒 Automático</span></label><input type="number" id="lpSemana" class="form-control form-control-auto" readonly title="Calculado automaticamente pela data"></div>
+          <div class="form-group">
+            <label class="form-label">Número do Pedido <span class="auto-badge">🔒 Automático</span></label>
+            <input id="lpNumero" class="form-control form-control-auto" readonly placeholder="Definido pelo sistema ao salvar" title="Gerado automaticamente pelo sistema">
+          </div>
           <div class="form-group"><label class="form-label">NFe (opcional)</label><input id="lpNfe" class="form-control" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')"></div>
-          <div class="form-group"><label class="form-label">Cliente</label><input id="lpCliente" list="dlClientes" class="form-control" autocomplete="off" oninput="_lpGerarNumeroPedido()"></div>
+          <div class="form-group"><label class="form-label">Cliente</label><input id="lpCliente" list="dlClientes" class="form-control" autocomplete="off"></div>
+          <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Observações (opcional)</label><input id="lpObservacoes" class="form-control" autocomplete="off" placeholder="Informações adicionais sobre o pedido"></div>
         </div>
 
         <label class="form-label" style="display:block;margin:6px 0 8px;">Produtos do pedido</label>
@@ -3582,9 +3615,14 @@ function renderLancarTab() {
     <div class="card mb-3">
       <div class="card-header"><h3>↩️ Registrar Devolução</h3></div>
       <div class="card-body">
+        <div class="form-group">
+          <label class="form-label">Consultar pela Nota Fiscal (opcional)</label>
+          <input id="devFiltroNfe" class="form-control" inputmode="numeric" autocomplete="off" placeholder="Ex.: 7029" oninput="_lpPreencherSelectPedidos()">
+          <p class="text-muted" id="devBuscaNfeResultado" style="margin:4px 0 0;"></p>
+        </div>
         <div class="form-group"><label class="form-label">Filtrar pedidos lançados no dia (opcional)</label><input type="date" id="devFiltroData" class="form-control" onchange="_lpPreencherSelectPedidos()"></div>
         <div class="form-group"><label class="form-label">Número do Pedido</label><select id="devNumero" class="form-control" onchange="_lpPreencherClienteDevolucao()"><option value="">Selecione...</option></select></div>
-        <div class="form-group"><label class="form-label">Cliente (preenchido automaticamente)</label><input id="devCliente" class="form-control" readonly style="background:var(--surface-2);cursor:default;"></div>
+        <div class="form-group"><label class="form-label">Cliente <span class="auto-badge">🔒 Automático</span></label><input id="devCliente" class="form-control form-control-auto" readonly title="Preenchido automaticamente pelo pedido selecionado"></div>
         <div class="form-group"><label class="form-label">Data do registro da devolução</label><input type="date" id="devData" class="form-control"></div>
         <div class="form-group"><label class="form-label">Parceiro</label><input id="devParceiro" list="dlDevParceiros" class="form-control" autocomplete="off" oninput="_lpAtualizarProdutosDevolucao()"></div>
         <div class="form-group"><label class="form-label">Produto</label><input id="devProduto" list="dlDevProdutos" class="form-control" autocomplete="off" oninput="_lpAtualizarLimiteQtdeDevolucao()"></div>
@@ -3611,9 +3649,58 @@ function renderLancarTab() {
         <button class="btn btn-secondary btn-sm" onclick="gerarRelatorioPedidosRegistrados()">🖨️ Relatório</button>
       </div>
       <div class="card-body">
-        <p class="text-muted" style="margin:-4px 0 12px;">Junta os pedidos, devoluções e bonificações já lançados — use a coluna "Tipo" pra distinguir.</p>
+        <div class="filter-bar" style="margin:-4px 0 12px;">
+          <div class="filter-item">
+            <label class="form-label">Tipo de registro</label>
+            <select id="lpFiltroTipoRegistrados" class="form-control" onchange="_lpAplicarFiltrosRegistrados()">
+              <option value="Todos">Todos os tipos</option>
+              <option value="Pedido">Pedidos</option>
+              <option value="Devolução">Devoluções</option>
+              <option value="Bonificação">Bonificações</option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <label class="form-label">Data</label>
+            <input type="date" id="lpFiltroDataRegistrados" class="form-control" onchange="_lpAplicarFiltrosRegistrados()">
+          </div>
+          <div class="filter-item">
+            <label class="form-label">NFe</label>
+            <input id="lpFiltroNfeRegistrados" class="form-control" inputmode="numeric" autocomplete="off" placeholder="Pesquisar NFe" oninput="_lpAplicarFiltrosRegistrados()">
+          </div>
+          <div class="filter-item">
+            <label class="form-label">Situação da NFe</label>
+            <select id="lpFiltroSituacaoNfeRegistrados" class="form-control" onchange="_lpAplicarFiltrosRegistrados()">
+              <option value="">Todas as situações</option>
+              <option value="sem_nfe">Somente pedidos sem NFe</option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <label class="form-label">Cliente</label>
+            <input id="lpFiltroClienteRegistrados" list="dlClientes" class="form-control" autocomplete="off" placeholder="Pesquisar cliente" oninput="_lpAplicarFiltrosRegistrados()">
+          </div>
+          <div class="filter-item">
+            <label class="form-label">Parceiro</label>
+            <input id="lpFiltroParceiroRegistrados" list="dlParceiros" class="form-control" autocomplete="off" placeholder="Pesquisar parceiro" oninput="_lpAplicarFiltrosRegistrados()">
+          </div>
+          <div class="filter-item">
+            <label class="form-label">Produto</label>
+            <input id="lpFiltroProdutoRegistrados" list="dlProdutos" class="form-control" autocomplete="off" placeholder="Pesquisar produto" oninput="_lpAplicarFiltrosRegistrados()">
+          </div>
+          <div class="filter-item">
+            <label class="form-label">Tipo de unidade</label>
+            <select id="lpFiltroUnidadeRegistrados" class="form-control" onchange="_lpAplicarFiltrosRegistrados()">
+              <option value="">Todas as unidades</option>
+              <option value="Unidades">Unidades</option>
+              <option value="kg">kg</option>
+            </select>
+          </div>
+          <div class="filter-item" style="flex:0 0 auto;">
+            <button class="btn btn-secondary btn-sm" onclick="_lpLimparFiltrosRegistrados()">Limpar filtros</button>
+          </div>
+        </div>
+        <p class="text-muted" id="lpResumoFiltroTipo" style="margin:0 0 12px;">Exibindo pedidos, devoluções e bonificações.</p>
         <div class="table-wrap table-scroll" style="max-height:440px;"><table>
-          <thead><tr><th>Tipo</th><th>Data</th><th>Nº Pedido</th><th>NFe</th><th>Cliente</th><th>Parceiro</th><th>Produto</th><th>Qtde</th><th>Tipo Unid.</th><th>Status/Motivo</th><th></th></tr></thead>
+          <thead><tr><th>Tipo</th><th>Data</th><th>Nº Pedido</th><th>NFe</th><th>Cliente</th><th>Parceiro</th><th>Produto</th><th>Qtde</th><th>Tipo Unid.</th><th>Status/Observação/Motivo</th><th></th></tr></thead>
           <tbody id="listaPedidosRegistrados"><tr><td colspan="11" class="empty-state">Carregando...</td></tr></tbody>
         </table></div>
       </div>
@@ -3625,7 +3712,7 @@ function renderLancarTab() {
         <div class="modal-header"><h3 id="modalEditarRegistroTitulo">✏️ Editar Registro</h3><button class="btn-icon" onclick="fecharModal('modalEditarRegistro')">✕</button></div>
         <div class="form-row cols-2">
           <div class="form-group"><label class="form-label">Data</label><input type="date" id="erData" class="form-control"></div>
-          <div class="form-group"><label class="form-label">Número do Pedido</label><input id="erNumero" class="form-control" readonly style="background:var(--surface-2);cursor:default;"></div>
+          <div class="form-group"><label class="form-label">Número do Pedido <span class="auto-badge">🔒 Bloqueado</span></label><input id="erNumero" class="form-control form-control-auto" readonly title="Este vínculo não pode ser alterado"></div>
           <div class="form-group"><label class="form-label">Cliente</label><input id="erCliente" list="dlClientes" class="form-control" autocomplete="off"></div>
           <div class="form-group"><label class="form-label">Parceiro</label><input id="erParceiro" list="dlParceiros" class="form-control" autocomplete="off"></div>
           <div class="form-group"><label class="form-label">Produto</label><input id="erProduto" list="dlProdutos" class="form-control" autocomplete="off"></div>
@@ -3645,8 +3732,8 @@ function renderLancarTab() {
         <div class="modal-header"><h3>✏️ Editar Pedido</h3><button class="btn-icon" onclick="fecharModal('modalEditarPedido')">✕</button></div>
         <div class="form-row cols-2">
           <div class="form-group"><label class="form-label">Data</label><input type="date" id="epData" class="form-control" onchange="_epAtualizarSemana()"></div>
-          <div class="form-group"><label class="form-label">Semana</label><input type="number" id="epSemana" class="form-control"></div>
-          <div class="form-group"><label class="form-label">Número do Pedido</label><input id="epNumero" class="form-control" readonly style="background:var(--surface-2);cursor:default;"></div>
+          <div class="form-group"><label class="form-label">Semana <span class="auto-badge">🔒 Automático</span></label><input type="number" id="epSemana" class="form-control form-control-auto" readonly title="Calculado automaticamente pela data"></div>
+          <div class="form-group"><label class="form-label">Número do Pedido <span class="auto-badge">🔒 Bloqueado</span></label><input id="epNumero" class="form-control form-control-auto" readonly title="O número do pedido não pode ser alterado"></div>
           <div class="form-group"><label class="form-label">NFe (opcional)</label><input id="epNfe" class="form-control" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')"></div>
           <div class="form-group"><label class="form-label">Cliente</label><input id="epCliente" list="dlClientes" class="form-control" autocomplete="off"></div>
           <div class="form-group"><label class="form-label">Produto</label><input id="epProduto" list="dlProdutos" class="form-control" autocomplete="off"></div>
@@ -3667,11 +3754,11 @@ function renderLancarTab() {
   document.getElementById('lpData').value = hoje.toISOString().slice(0, 10);
   document.getElementById('devData').value = hoje.toISOString().slice(0, 10);
   _lpAtualizarSemana();
-  _lpGerarNumeroPedido();
   _lpProdutoSeq = 0; _lpParceiroSeq = 0; _lpBonSeq = 0;
   document.getElementById('lpProdutosContainer').innerHTML = '';
   document.getElementById('lpBonificacoesContainer').innerHTML = '';
   _lpAdicionarProduto();
+  _lpRestaurarCamposFiltrosRegistrados();
   carregarPedidosRegistrados();
   _comboAttachAll();
   _maskNumeroAll();
@@ -3779,36 +3866,138 @@ function _lpRemoverBonificacao(rowId) {
   if (row) row.remove();
 }
 
-// Reproduz a mesma fórmula que já era usada direto na planilha (coluna
-// "Número do Pedido" de Controle de Pedidos): CÓDIGO + data + semana ISO.
-// O código do cliente é as 2 primeiras letras do primeiro nome + 2
-// primeiras do último nome (ex.: "Ximenes Cruzeiro" → "XICR"); se o nome
-// não tiver espaço, usa as 4 primeiras letras (ex.: "Trielo" → "TRIE").
-function _gerarCodigoCliente(nome) {
-  const partes = String(nome || '').trim().split(/\s+/).filter(Boolean);
-  if (!partes.length) return '';
-  const codigo = partes.length === 1
-    ? partes[0].slice(0, 4)
-    : partes[0].slice(0, 2) + partes[partes.length - 1].slice(0, 2);
-  return codigo.toUpperCase();
-}
-function _lpGerarNumeroPedido() {
-  const campoData = document.getElementById('lpData');
-  const campoCliente = document.getElementById('lpCliente');
-  const campoNumero = document.getElementById('lpNumero');
-  if (!campoData || !campoCliente || !campoNumero) return;
-  const dataVal = campoData.value;
-  const codigo = _gerarCodigoCliente(campoCliente.value);
-  if (!dataVal || !codigo) { campoNumero.value = ''; return; }
-  const [ano, mes, dia] = dataVal.split('-');
-  const semana = _semanaISO(dataVal);
-  campoNumero.value = `${codigo} ${dia}/${mes}/${ano} SEM ${semana}`;
-}
-
 // ── Tabela "Pedidos Registrados" — junta Pedidos + Devoluções +
 // Bonificações num único lugar, editar/excluir linha a linha ──
 let _pedidoEditando = null;   // { linha, numero_pedido_original }
 let _registroEditando = null; // { nomeAba, linha, original:{numero_pedido,data,produto} }
+let _lpFiltroTipoRegistrados = 'Todos';
+const _lpFiltrosRegistrados = {
+  data: '',
+  nfe: '',
+  situacaoNfe: '',
+  cliente: '',
+  parceiro: '',
+  produto: '',
+  unidade: ''
+};
+
+function _lpNormalizarPesquisa(valor) {
+  return String(valor || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+function _lpNfeDoRegistroRegistrado(registro) {
+  if (registro._tipo === 'Pedido') return registro.nfe || '';
+  const pedido = (AppState.lancar.pedidos || [])
+    .find(p => p.numero_pedido === registro.numero_pedido && p.nfe);
+  return pedido ? pedido.nfe : '';
+}
+function _lpParceirosDoRegistroRegistrado(registro) {
+  if (registro._tipo === 'Pedido') {
+    return (registro.parceiros || []).map(p => p.parceiro || '').join(' ');
+  }
+  return registro.parceiro || '';
+}
+
+function _lpFiltrarListaRegistrados(lista) {
+  const todos = lista || [];
+  const cliente = _lpNormalizarPesquisa(_lpFiltrosRegistrados.cliente);
+  const parceiro = _lpNormalizarPesquisa(_lpFiltrosRegistrados.parceiro);
+  const produto = _lpNormalizarPesquisa(_lpFiltrosRegistrados.produto);
+  const consultaNfe = _lpNormalizarNfe(_lpFiltrosRegistrados.nfe);
+  return todos.filter(r => {
+    if (_lpFiltroTipoRegistrados !== 'Todos' && r._tipo !== _lpFiltroTipoRegistrados) return false;
+    if (_lpFiltrosRegistrados.data && r.data !== _lpFiltrosRegistrados.data) return false;
+    if (_lpFiltrosRegistrados.situacaoNfe === 'sem_nfe' &&
+        (r._tipo !== 'Pedido' || _lpNormalizarNfe(r.nfe))) return false;
+    if (consultaNfe && !_lpNormalizarNfe(_lpNfeDoRegistroRegistrado(r)).includes(consultaNfe)) return false;
+    if (cliente && !_lpNormalizarPesquisa(r.cliente).includes(cliente)) return false;
+    if (parceiro && !_lpNormalizarPesquisa(_lpParceirosDoRegistroRegistrado(r)).includes(parceiro)) return false;
+    if (produto && !_lpNormalizarPesquisa(r.produto).includes(produto)) return false;
+    if (_lpFiltrosRegistrados.unidade && String(r.tipo || '').toLowerCase() !== _lpFiltrosRegistrados.unidade.toLowerCase()) return false;
+    return true;
+  });
+}
+function _lpAplicarFiltrosRegistrados() {
+  const valor = id => (document.getElementById(id) || {}).value || '';
+  const tipo = valor('lpFiltroTipoRegistrados');
+  const tiposValidos = ['Todos', 'Pedido', 'Devolução', 'Bonificação'];
+  _lpFiltroTipoRegistrados = tiposValidos.includes(tipo) ? tipo : 'Todos';
+  _lpFiltrosRegistrados.data = valor('lpFiltroDataRegistrados');
+  _lpFiltrosRegistrados.nfe = valor('lpFiltroNfeRegistrados').trim();
+  _lpFiltrosRegistrados.situacaoNfe = valor('lpFiltroSituacaoNfeRegistrados');
+  if (_lpFiltrosRegistrados.situacaoNfe === 'sem_nfe') {
+    // Essa opção representa especificamente pedidos sem nota. Evita uma
+    // combinação contraditória com "Devolução/Bonificação" ou um número
+    // digitado no campo de pesquisa de NFe.
+    _lpFiltroTipoRegistrados = 'Pedido';
+    _lpFiltrosRegistrados.nfe = '';
+    const campoTipo = document.getElementById('lpFiltroTipoRegistrados');
+    const campoNfe = document.getElementById('lpFiltroNfeRegistrados');
+    if (campoTipo) campoTipo.value = 'Pedido';
+    if (campoNfe) campoNfe.value = '';
+  }
+  _lpFiltrosRegistrados.cliente = valor('lpFiltroClienteRegistrados').trim();
+  _lpFiltrosRegistrados.parceiro = valor('lpFiltroParceiroRegistrados').trim();
+  _lpFiltrosRegistrados.produto = valor('lpFiltroProdutoRegistrados').trim();
+  _lpFiltrosRegistrados.unidade = valor('lpFiltroUnidadeRegistrados');
+  _renderTabelaPedidosRegistrados(AppState.lancar.registrados || []);
+}
+function _lpRestaurarCamposFiltrosRegistrados() {
+  const preencher = (id, valor) => {
+    const campo = document.getElementById(id);
+    if (campo) campo.value = valor;
+  };
+  preencher('lpFiltroTipoRegistrados', _lpFiltroTipoRegistrados);
+  preencher('lpFiltroDataRegistrados', _lpFiltrosRegistrados.data);
+  preencher('lpFiltroNfeRegistrados', _lpFiltrosRegistrados.nfe);
+  preencher('lpFiltroSituacaoNfeRegistrados', _lpFiltrosRegistrados.situacaoNfe);
+  preencher('lpFiltroClienteRegistrados', _lpFiltrosRegistrados.cliente);
+  preencher('lpFiltroParceiroRegistrados', _lpFiltrosRegistrados.parceiro);
+  preencher('lpFiltroProdutoRegistrados', _lpFiltrosRegistrados.produto);
+  preencher('lpFiltroUnidadeRegistrados', _lpFiltrosRegistrados.unidade);
+}
+function _lpLimparFiltrosRegistrados() {
+  _lpFiltroTipoRegistrados = 'Todos';
+  Object.keys(_lpFiltrosRegistrados).forEach(chave => { _lpFiltrosRegistrados[chave] = ''; });
+  _lpRestaurarCamposFiltrosRegistrados();
+  _renderTabelaPedidosRegistrados(AppState.lancar.registrados || []);
+}
+function _lpChaveListaPorTipo(tipo) {
+  if (tipo === 'Pedido') return 'pedidos';
+  if (tipo === 'Devolução') return 'devolucoes';
+  return 'bonificacoes';
+}
+function _lpAtualizarLinhaRegistradaLocal(tipo, linha, dados) {
+  const chave = _lpChaveListaPorTipo(tipo);
+  const numeroLinha = Number(linha);
+  const atualizar = lista => {
+    const registro = (lista || []).find(r => Number(r.linha) === numeroLinha);
+    if (registro) Object.assign(registro, dados);
+  };
+  atualizar(AppState.lancar[chave]);
+  atualizar((AppState.lancar.registrados || []).filter(r => r._tipo === tipo));
+  _renderTabelaPedidosRegistrados(AppState.lancar.registrados || []);
+}
+function _lpExcluirLinhaRegistradaLocal(tipo, linha) {
+  const chave = _lpChaveListaPorTipo(tipo);
+  const numeroLinha = Number(linha);
+  // Ao excluir uma linha da planilha, todas as linhas abaixo dela sobem uma
+  // posição. Reproduz esse ajuste no estado local para os próximos botões
+  // Editar/Excluir continuarem apontando para a linha certa.
+  AppState.lancar[chave] = (AppState.lancar[chave] || [])
+    .filter(r => Number(r.linha) !== numeroLinha)
+    .map(r => {
+      if (Number(r.linha) > numeroLinha) r.linha = Number(r.linha) - 1;
+      return r;
+    });
+  AppState.lancar.registrados = (AppState.lancar.registrados || [])
+    .filter(r => !(r._tipo === tipo && Number(r.linha) === numeroLinha))
+    .map(r => {
+      if (r._tipo === tipo && Number(r.linha) > numeroLinha) r.linha = Number(r.linha) - 1;
+      return r;
+    });
+  _renderTabelaPedidosRegistrados(AppState.lancar.registrados);
+}
 
 function carregarPedidosRegistrados() {
   const tbody = document.getElementById('listaPedidosRegistrados');
@@ -3835,11 +4024,12 @@ function carregarPedidosRegistrados() {
 }
 
 function gerarRelatorioPedidosRegistrados() {
-  const listaCompleta = AppState.lancar.registrados || [];
-  if (!listaCompleta.length) { toast('Aguarde a tabela carregar antes de gerar o relatório.', 'error'); return; }
-  // Essa tabela não tem um filtro de período visível na tela (junta 3 abas
-  // sem paginação por data) — o modal parte sempre em branco ("Todo o
-  // Histórico") em vez de vir pré-preenchido.
+  const todosRegistros = AppState.lancar.registrados || [];
+  if (!todosRegistros.length) { toast('Aguarde a tabela carregar antes de gerar o relatório.', 'error'); return; }
+  const listaCompleta = _lpFiltrarListaRegistrados(todosRegistros);
+  if (!listaCompleta.length) { toast('Não há registros para os filtros selecionados.', 'error'); return; }
+  // Além dos filtros rápidos da tela, o relatório ainda permite restringir
+  // por um intervalo completo de datas.
   _pedirPeriodoRelatorio(null, periodo => {
     const { data_inicio, data_fim } = periodo;
     const lista = listaCompleta.filter(r => {
@@ -3850,20 +4040,32 @@ function gerarRelatorioPedidosRegistrados() {
     const totalPedidos = lista.filter(r => r._tipo === 'Pedido').length;
     const totalDevolucoes = lista.filter(r => r._tipo === 'Devolução').length;
     const totalBonificacoes = lista.filter(r => r._tipo === 'Bonificação').length;
+    const parametrosRelatorio = [
+      { label: 'Período', valor: _relPeriodo({ data_inicio, data_fim }) },
+      { label: 'Tipo', valor: _lpFiltroTipoRegistrados === 'Todos' ? 'Todos os tipos' : _lpFiltroTipoRegistrados }
+    ];
+    if (_lpFiltrosRegistrados.data) parametrosRelatorio.push({ label: 'Data', valor: fmtDate(_lpFiltrosRegistrados.data) });
+    if (_lpFiltrosRegistrados.situacaoNfe === 'sem_nfe') {
+      parametrosRelatorio.push({ label: 'NFe', valor: 'Somente pedidos sem NFe' });
+    } else if (_lpFiltrosRegistrados.nfe) {
+      parametrosRelatorio.push({ label: 'NFe', valor: _lpFiltrosRegistrados.nfe });
+    }
+    if (_lpFiltrosRegistrados.cliente) parametrosRelatorio.push({ label: 'Cliente', valor: _lpFiltrosRegistrados.cliente });
+    if (_lpFiltrosRegistrados.parceiro) parametrosRelatorio.push({ label: 'Parceiro', valor: _lpFiltrosRegistrados.parceiro });
+    if (_lpFiltrosRegistrados.produto) parametrosRelatorio.push({ label: 'Produto', valor: _lpFiltrosRegistrados.produto });
+    if (_lpFiltrosRegistrados.unidade) parametrosRelatorio.push({ label: 'Unidade', valor: _lpFiltrosRegistrados.unidade });
     abrirRelatorioA4({
       titulo: 'Pedidos Registrados',
       subtitulo: 'Lançamentos',
       tituloTabela: 'Mapa de Pedidos, Devoluções e Bonificações',
-      parametros: [
-        { label: 'Período', valor: _relPeriodo({ data_inicio, data_fim }) }
-      ],
+      parametros: parametrosRelatorio,
       resumo: [
         { label: 'Total de Registros', valor: fmtNum(lista.length) },
         { label: 'Pedidos', valor: fmtNum(totalPedidos) },
         { label: 'Devoluções', valor: fmtNum(totalDevolucoes) },
         { label: 'Bonificações', valor: fmtNum(totalBonificacoes) }
       ],
-      colunas: ['Tipo', 'Data', 'Nº Pedido', 'NFe', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo Unid.', 'Status/Motivo'],
+      colunas: ['Tipo', 'Data', 'Nº Pedido', 'NFe', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo Unid.', 'Status/Observação/Motivo'],
       linhas: lista.map(r => {
         const ehPedido = r._tipo === 'Pedido';
         const parceiroExibido = ehPedido
@@ -3872,7 +4074,7 @@ function gerarRelatorioPedidosRegistrados() {
         return [
           r._tipo, fmtDate(r.data), r.numero_pedido || '', ehPedido ? (r.nfe || '—') : '', r.cliente || '', parceiroExibido || '—',
           r.produto || '', fmtNum(ehPedido ? r.qtde_solicitada : r.quantidade), r.tipo || '',
-          ehPedido ? (r.status || '') : (r.motivo || '')
+          ehPedido ? (r.status || r.observacoes || '') : (r.motivo || '')
         ];
       })
     });
@@ -3885,11 +4087,21 @@ function _lpBadgeTipo(tipo) {
   return '<span class="badge badge-verde">Bonificação</span>';
 }
 function _renderTabelaPedidosRegistrados(lista) {
+  const totalSemFiltro = (lista || []).length;
+  lista = _lpFiltrarListaRegistrados(lista);
   lista = _ordenarPorData(lista, 'lancar');
   const tbody = document.getElementById('listaPedidosRegistrados');
+  const resumo = document.getElementById('lpResumoFiltroTipo');
+  if (resumo) {
+    const possuiFiltro = _lpFiltroTipoRegistrados !== 'Todos' ||
+      Object.values(_lpFiltrosRegistrados).some(Boolean);
+    resumo.textContent = !possuiFiltro
+      ? `Exibindo todos os ${totalSemFiltro} registros.`
+      : `Exibindo ${lista.length} de ${totalSemFiltro} registros encontrados.`;
+  }
   if (!tbody) return;
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Nenhum registro ainda.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Nenhum registro encontrado para este tipo.</td></tr>';
     return;
   }
   tbody.innerHTML = lista.map(r => {
@@ -3914,7 +4126,7 @@ function _renderTabelaPedidosRegistrados(lista) {
       <td>${r.produto || ''}</td>
       <td>${fmtNum(ehPedido ? r.qtde_solicitada : r.quantidade)}</td>
       <td>${r.tipo || ''}</td>
-      <td>${ehPedido ? (r.status || '') : (r.motivo || '')}</td>
+      <td>${ehPedido ? (r.status || r.observacoes || '') : (r.motivo || '')}</td>
       <td style="white-space:nowrap;">
         <button class="btn-icon" title="Editar" onclick="${editarOnclick}">✏️</button>
         <button class="btn-icon" title="Excluir" onclick="${excluirOnclick}">🗑️</button>
@@ -3943,6 +4155,7 @@ function abrirEditarRegistro(nomeAba, linha) {
 
 function salvarEdicaoRegistro() {
   if (!_registroEditando) return;
+  const edicao = _registroEditando;
   const dados = {
     data:           document.getElementById('erData').value,
     numero_pedido:  document.getElementById('erNumero').value.trim(),
@@ -3958,13 +4171,14 @@ function salvarEdicaoRegistro() {
     return;
   }
   showLoading(true);
-  gs('editarRegistroLinha', App.token, _registroEditando.nomeAba, _registroEditando.linha, _registroEditando.original, dados).then(() => {
+  gs('editarRegistroLinha', App.token, edicao.nomeAba, edicao.linha, edicao.original, dados).then(() => {
     showLoading(false);
     toast('Registro atualizado com sucesso.', 'success');
     fecharModal('modalEditarRegistro');
     _registroEditando = null;
     _lpInvalidarCaches(['devolucoes', 'resumo']);
-    carregarPedidosRegistrados();
+    const tipo = edicao.nomeAba === 'Devoluções' ? 'Devolução' : 'Bonificação';
+    _lpAtualizarLinhaRegistradaLocal(tipo, edicao.linha, dados);
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
@@ -3978,9 +4192,9 @@ async function excluirRegistroRegistrado(nomeAba, linha) {
   showLoading(true);
   gs('excluirRegistroLinha', App.token, nomeAba, r.linha, { numero_pedido: r.numero_pedido, data: r.data, produto: r.produto }).then(() => {
     showLoading(false);
-    toast('Registro excluído.', 'success');
+    toast((tipoLabel === 'devolução' ? 'Devolução' : 'Bonificação') + ' excluída com sucesso.', 'success');
     _lpInvalidarCaches(['devolucoes', 'resumo']);
-    carregarPedidosRegistrados();
+    _lpExcluirLinhaRegistradaLocal(nomeAba === 'Devoluções' ? 'Devolução' : 'Bonificação', r.linha);
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
@@ -4055,6 +4269,7 @@ function _epAtualizarSemana() {
 
 function salvarEdicaoPedido() {
   if (!_pedidoEditando) return;
+  const edicao = _pedidoEditando;
   const dados = {
     data:             document.getElementById('epData').value,
     semana:           document.getElementById('epSemana').value,
@@ -4078,10 +4293,10 @@ function salvarEdicaoPedido() {
   })).filter(p => p.parceiro && p.quantidade > 0);
 
   showLoading(true);
-  gs('editarPedidoLinha', App.token, _pedidoEditando.linha, _pedidoEditando.numero_pedido_original, dados)
+  gs('editarPedidoLinha', App.token, edicao.linha, edicao.numero_pedido_original, dados)
     .then(() => gs('salvarDistribuicaoPedido', App.token, {
-      numero_pedido_original: _pedidoEditando.numero_pedido_original,
-      produto_original: _pedidoEditando.produto_original,
+      numero_pedido_original: edicao.numero_pedido_original,
+      produto_original: edicao.produto_original,
       numero_pedido: dados.numero_pedido,
       produto: dados.produto,
       cliente: dados.cliente,
@@ -4095,7 +4310,21 @@ function salvarEdicaoPedido() {
       fecharModal('modalEditarPedido');
       _pedidoEditando = null;
       _lpInvalidarCaches(['pedidos', 'parceiros', 'resumo']);
-      carregarPedidosRegistrados();
+      const atualizado = {
+        ...dados,
+        restante: Math.max(Number(dados.qtde_solicitada) - Number(dados.qtde_concluida), 0),
+        parceiros: parceiros
+      };
+      // A edição replica a NFe para todos os produtos do mesmo pedido.
+      (AppState.lancar.pedidos || []).forEach(p => {
+        if (p.numero_pedido === dados.numero_pedido) p.nfe = dados.nfe;
+      });
+      (AppState.lancar.registrados || []).forEach(r => {
+        if (r._tipo === 'Pedido' && r.numero_pedido === dados.numero_pedido) r.nfe = dados.nfe;
+      });
+      const opcaoPedido = (_lpPedidosList || []).find(p => p.numero_pedido === dados.numero_pedido);
+      if (opcaoPedido) Object.assign(opcaoPedido, { cliente: dados.cliente, data: dados.data, nfe: dados.nfe });
+      _lpAtualizarLinhaRegistradaLocal('Pedido', edicao.linha, atualizado);
     }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
@@ -4107,9 +4336,12 @@ async function excluirPedidoRegistrado(linha) {
   showLoading(true);
   gs('excluirPedidoLinha', App.token, p.linha, p.numero_pedido, p.produto).then(() => {
     showLoading(false);
-    toast('Pedido excluído.', 'success');
+    toast('Pedido excluído com sucesso.', 'success');
     _lpInvalidarCaches(['pedidos', 'parceiros', 'resumo']);
-    carregarPedidosRegistrados();
+    _lpExcluirLinhaRegistradaLocal('Pedido', p.linha);
+    if (!(AppState.lancar.pedidos || []).some(item => item.numero_pedido === p.numero_pedido)) {
+      _lpPedidosList = (_lpPedidosList || []).filter(item => item.numero_pedido !== p.numero_pedido);
+    }
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
@@ -4136,7 +4368,7 @@ function _lpAtualizarSemana() {
   if (semana) campoSemana.value = semana;
 }
 
-let _lpPedidosList = []; // [{numero_pedido, cliente, data}] — vem de listarOpcoesLancamento
+let _lpPedidosList = []; // [{numero_pedido, cliente, data, nfe}] — vem de listarOpcoesLancamento
 function loadLancarOpcoes() {
   gs('listarOpcoesLancamento', App.token).then(opcoes => {
     AppState.lancar.opcoes = opcoes;
@@ -4293,18 +4525,60 @@ function _setNumVal(input, valor) {
   const n = Number(valor) || 0;
   input.value = n ? fmtNum(n) : '';
 }
-// Preenche o <select> de Número do Pedido — se houver uma data escolhida em
-// "Filtrar pedidos lançados no dia", mostra só os pedidos daquele dia; sem
-// filtro, mostra todos. Mantém a seleção atual se ela ainda estiver na lista.
+function _lpNormalizarNfe(valor) {
+  const texto = String(valor || '').trim().toLowerCase();
+  // Pontos, barras, hífens e espaços usados na apresentação da NF não
+  // interferem na pesquisa. Zeros à esquerda também são ignorados quando a
+  // nota contém apenas números (ex.: 007029 encontra 7029).
+  const limpo = texto.replace(/[^a-z0-9]/g, '');
+  return /^\d+$/.test(limpo) ? limpo.replace(/^0+(?=\d)/, '') : limpo;
+}
+function _lpEscapeHtml(valor) {
+  return String(valor == null ? '' : valor)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Preenche o <select> de Número do Pedido. A busca pela NFe tem prioridade
+// sobre a data, para uma data que tenha ficado preenchida não esconder o
+// pedido procurado. Ao encontrar exatamente uma NF, já seleciona o pedido
+// correspondente e dispara o preenchimento dos demais campos.
 function _lpPreencherSelectPedidos() {
   const sel = document.getElementById('devNumero');
   if (!sel) return;
   const filtroData = (document.getElementById('devFiltroData') || {}).value || '';
+  const campoNfe = document.getElementById('devFiltroNfe');
+  const consultaNfe = _lpNormalizarNfe(campoNfe ? campoNfe.value : '');
+  const hint = document.getElementById('devBuscaNfeResultado');
   const atual = sel.value;
-  const lista = filtroData ? _lpPedidosList.filter(p => p.data === filtroData) : _lpPedidosList;
+  let lista = !consultaNfe && filtroData
+    ? _lpPedidosList.filter(p => p.data === filtroData)
+    : _lpPedidosList.slice();
+  if (consultaNfe) {
+    lista = lista.filter(p => _lpNormalizarNfe(p.nfe).includes(consultaNfe));
+  }
+
   sel.innerHTML = '<option value="">Selecione...</option>' +
-    lista.map(p => `<option value="${String(p.numero_pedido).replace(/"/g, '&quot;')}">${String(p.numero_pedido).replace(/</g, '&lt;')} — ${String(p.cliente).replace(/</g, '&lt;')}</option>`).join('');
-  sel.value = lista.some(p => p.numero_pedido === atual) ? atual : '';
+    lista.map(p => {
+      const nfe = p.nfe ? ` — NF ${_lpEscapeHtml(p.nfe)}` : '';
+      return `<option value="${_lpEscapeHtml(p.numero_pedido)}">${_lpEscapeHtml(p.numero_pedido)} — ${_lpEscapeHtml(p.cliente)}${nfe}</option>`;
+    }).join('');
+
+  const correspondenciasExatas = consultaNfe
+    ? lista.filter(p => _lpNormalizarNfe(p.nfe) === consultaNfe)
+    : [];
+  if (correspondenciasExatas.length === 1) {
+    sel.value = correspondenciasExatas[0].numero_pedido;
+  } else {
+    sel.value = lista.some(p => p.numero_pedido === atual) ? atual : '';
+  }
+
+  if (hint) {
+    if (!consultaNfe) hint.textContent = '';
+    else if (!lista.length) hint.textContent = 'Nenhum pedido encontrado para esta nota fiscal.';
+    else if (correspondenciasExatas.length === 1) hint.textContent = `Pedido encontrado: ${correspondenciasExatas[0].numero_pedido}`;
+    else hint.textContent = `${lista.length} pedidos encontrados. Selecione o pedido desejado abaixo.`;
+  }
   _lpPreencherClienteDevolucao();
 }
 function _lpPreencherClienteDevolucao() {
@@ -4387,14 +4661,12 @@ function _lpInvalidarCaches(abas) {
 function salvarNovoPedido() {
   const data          = document.getElementById('lpData').value;
   const semana        = document.getElementById('lpSemana').value;
-  const numero_pedido = document.getElementById('lpNumero').value.trim();
   const nfe           = document.getElementById('lpNfe').value.trim();
   const cliente       = document.getElementById('lpCliente').value.trim();
-  const status        = 'Em aberto'; // todo pedido novo começa em aberto — status é ajustado depois pela edição
-  const observacoes   = '';
+  const observacoes   = document.getElementById('lpObservacoes').value.trim();
 
-  if (!data || !cliente || !numero_pedido) {
-    toast('Preencha a Data e o Cliente (o Número do Pedido é gerado automaticamente a partir deles).', 'error');
+  if (!data || !cliente) {
+    toast('Preencha a Data e o Cliente.', 'error');
     return;
   }
 
@@ -4441,9 +4713,9 @@ function salvarNovoPedido() {
   if (erro) { toast(erro, 'error'); return; }
 
   showLoading(true);
-  gs('lancarPedido', App.token, { data, semana, numero_pedido, nfe, cliente, status, observacoes, produtos, bonificacoes }).then(() => {
+  gs('lancarPedido', App.token, { data, semana, nfe, cliente, observacoes, produtos, bonificacoes }).then(resultado => {
     showLoading(false);
-    toast('Pedido lançado com sucesso.', 'success');
+    toast(`Pedido ${resultado.numero_pedido} lançado com sucesso.`, 'success');
     _lpInvalidarCaches(['pedidos', 'parceiros', 'resumo', 'devolucoes']);
     renderLancarTab();
     loadLancarOpcoes();
