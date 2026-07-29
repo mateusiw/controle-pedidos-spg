@@ -70,6 +70,11 @@
        ficar grudada no topo. Com overflow só no html, o body fica com overflow
        padrão (visible) e a .navbar gruda certinho no viewport de verdade. */
     html{overflow-x:hidden;max-width:100%;background:var(--page);}
+    /* Trava o scroll da página por trás enquanto qualquer modal-overlay
+       estiver aberto (classe aplicada via JS — ver _atualizarBloqueioScrollModais) —
+       sem isso, rolar o mouse sobre o modal em telas menores também rolava o
+       conteúdo atrás dele. */
+    html.modal-scroll-lock{overflow-y:hidden;}
     body{margin:0;max-width:100%;font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink);
       background:radial-gradient(circle at 0 -10%,rgba(18,165,101,.08),transparent 34rem),var(--page);
       min-height:100vh;transition:background .2s,color .2s;}
@@ -1593,6 +1598,34 @@ function appTab(aba) {
 }
 
 function fecharModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// Abre o seletor nativo de data ao clicar em qualquer parte do campo, não só
+// no ícone de calendário no canto — em navegadores Chromium, clicar fora do
+// ícone só posicionava o cursor sem abrir o calendário. Delegado no
+// document (não em cada input) pra valer também pros campos de data
+// recriados dinamicamente (Novo Pedido, Registrar Devolução, filtros etc.).
+document.addEventListener('click', e => {
+  const campo = e.target.closest('input[type="date"]');
+  if (campo && typeof campo.showPicker === 'function') {
+    try { campo.showPicker(); } catch (err) { /* campo readonly/disabled — ignora */ }
+  }
+});
+
+// Trava o scroll da página (fundo) sempre que algum ".modal-overlay" estiver
+// visível (classe "show"). Observa a classe em vez de embrulhar toda
+// abertura/fechamento de modal numa função só, porque vários lugares do
+// código abrem modal direto via classList.add('show') — assim funciona pra
+// qualquer modal, presente ou futuro, sem precisar tocar em cada onclick.
+(function _iniciarBloqueioScrollModais() {
+  const aplicar = () => {
+    const abertoAgora = !!document.querySelector('.modal-overlay.show');
+    document.documentElement.classList.toggle('modal-scroll-lock', abertoAgora);
+  };
+  new MutationObserver(muts => {
+    if (muts.some(m => m.target.classList && m.target.classList.contains('modal-overlay'))) aplicar();
+  }).observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
+  aplicar();
+})();
 
 // ── Substitui window.confirm()/window.prompt() (pop-ups nativos do
 // navegador) por um modal no estilo do app — os dois reaproveitam o mesmo
@@ -3567,13 +3600,15 @@ function renderLancarTab() {
     <datalist id="dlStatus"></datalist>
     <datalist id="dlMotivosDevolucao"></datalist>
     <datalist id="dlMotivosBonificacao"></datalist>
-    <datalist id="dlDevParceiros"></datalist>
     <datalist id="dlDevProdutos"></datalist>
 
-    <div class="tabbar">
-      <button id="tabsub_novo" class="tab-btn" onclick="_lpSubTab('novo')">🧾 Novo Pedido</button>
-      <button id="tabsub_devolucao" class="tab-btn" onclick="_lpSubTab('devolucao')">↩️ Registrar Devolução</button>
-      <button id="tabsub_tabela" class="tab-btn" onclick="_lpSubTab('tabela')">📋 Pedidos Registrados</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
+      <div class="tabbar" style="margin-bottom:0;flex:1;min-width:0;">
+        <button id="tabsub_novo" class="tab-btn" onclick="_lpSubTab('novo')">🧾 Novo Pedido</button>
+        <button id="tabsub_devolucao" class="tab-btn" onclick="_lpSubTab('devolucao')">↩️ Registrar Devolução</button>
+        <button id="tabsub_tabela" class="tab-btn" onclick="_lpSubTab('tabela')">📋 Pedidos Registrados</button>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" style="flex-shrink:0;" onclick="document.getElementById('modalAjudaLancamentos').classList.add('show')">❓ Como usar</button>
     </div>
 
     <div id="lpSub_novo">
@@ -3629,18 +3664,17 @@ function renderLancarTab() {
         <div class="form-group"><label class="form-label">Número do Pedido</label><select id="devNumero" class="form-control" onchange="_lpPreencherClienteDevolucao()"><option value="">Selecione...</option></select></div>
         <div class="form-group"><label class="form-label">Cliente <span class="auto-badge">🔒 Automático</span></label><input id="devCliente" class="form-control form-control-auto" readonly title="Preenchido automaticamente pelo pedido selecionado"></div>
         <div class="form-group"><label class="form-label">Data do registro da devolução</label><input type="date" id="devData" class="form-control"></div>
-        <div class="form-group"><label class="form-label">Parceiro</label><input id="devParceiro" list="dlDevParceiros" class="form-control" autocomplete="off" oninput="_lpAtualizarProdutosDevolucao()"></div>
-        <div class="form-group"><label class="form-label">Produto</label><input id="devProduto" list="dlDevProdutos" class="form-control" autocomplete="off" oninput="_lpAtualizarLimiteQtdeDevolucao()"></div>
         <div class="form-row cols-2">
-          <div class="form-group">
-            <label class="form-label">Quantidade</label>
-            <input type="text" id="devQtde" class="form-control num-mask" inputmode="decimal">
-            <p class="text-muted" id="devQtdeMax" style="margin:4px 0 0;"></p>
-          </div>
+          <div class="form-group"><label class="form-label">Produto</label><input id="devProduto" list="dlDevProdutos" class="form-control" autocomplete="off" oninput="_devAoTrocarProduto()"></div>
           <div class="form-group"><label class="form-label">Tipo</label><select id="devTipo" class="form-control"><option value="Unidades">Unidades</option><option value="kg">kg</option></select></div>
         </div>
+        <datalist id="dlDevParceirosProduto"></datalist>
+        <label class="form-label" style="display:block;margin:6px 0 8px;">Distribuição da devolução por parceiro <span style="font-weight:400;opacity:.7;">(divida a devolução desse produto entre um ou mais parceiros que o forneceram nesse pedido)</span></label>
+        <div class="lp-parceiros-lista" id="devParceirosContainer"></div>
+        <button type="button" class="btn btn-secondary btn-sm mb-3" onclick="_devAdicionarParceiro()">➕ Adicionar parceiro</button>
         <div class="form-group"><label class="form-label">Motivo</label><input id="devMotivo" list="dlMotivosDevolucao" class="form-control" autocomplete="off"></div>
         <button class="btn btn-primary" onclick="salvarDevolucao()">Registrar Devolução</button>
+        <button type="button" class="btn btn-secondary" onclick="_lpLimparDevolucao()" title="Limpa os filtros e os campos da devolução preenchidos">🧹 Limpar formulário</button>
       </div>
     </div>
     </div>
@@ -3754,6 +3788,53 @@ function renderLancarTab() {
           <button class="btn btn-primary" onclick="salvarEdicaoPedido()">Salvar</button>
         </div>
       </div>
+    </div>
+
+    <div class="modal-overlay" id="modalAjudaLancamentos">
+      <div class="modal modal-lg">
+        <div class="modal-header"><h3>❓ Como usar a aba Lançamentos</h3><button class="btn-icon" onclick="fecharModal('modalAjudaLancamentos')">✕</button></div>
+        <p class="text-muted" style="margin:-4px 0 12px;">Passo a passo das três sub-abas: lançar um pedido novo, registrar uma devolução e consultar/editar o que já foi lançado.</p>
+
+        <div class="card mb-3">
+          <div class="card-header"><h3 style="font-size:12px;">🧾 Novo Pedido</h3></div>
+          <div class="card-body">
+            <ol style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;color:var(--ink-2);">
+              <li>A <strong>Data</strong> já vem preenchida com hoje e a <strong>Semana</strong> é calculada sozinha — mexa só se o pedido for de outro dia.</li>
+              <li>O <strong>Número do Pedido</strong> é gerado automaticamente ao salvar; a <strong>NFe</strong> é opcional e pode ser preenchida depois.</li>
+              <li>Digite o <strong>Cliente</strong> — o campo sugere nomes já usados conforme você digita.</li>
+              <li>Em <strong>Produtos do pedido</strong>, preencha Produto, Qtde Solicitada e Tipo (Unidades/kg). Use <strong>➕ Adicionar Produto</strong> para incluir mais de um item no mesmo pedido.</li>
+              <li><strong>Distribuição por parceiro</strong> é opcional aqui: dá pra já dizer quem vai atender (e dividir entre vários parceiros) ou deixar em branco e completar depois pela tabela "Pedidos Registrados".</li>
+              <li>Se parte do pedido for reposição/cortesia (não venda normal), preencha em <strong>🎁 Bonificação</strong> — vai para a aba de Bonificações, não para a distribuição normal.</li>
+              <li>Clique em <strong>Lançar Pedido</strong>: o sistema mostra um resumo para confirmar antes de gravar. Depois de enviar, o formulário <strong>não é limpo automaticamente</strong> (útil pra repetir produtos/parceiros no próximo cliente) — use <strong>🧹 Limpar formulário</strong> quando quiser começar do zero (ele também pede confirmação).</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <div class="card-header"><h3 style="font-size:12px;">↩️ Registrar Devolução</h3></div>
+          <div class="card-body">
+            <ol style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;color:var(--ink-2);">
+              <li>Localize o pedido: busque pela <strong>Nota Fiscal</strong> ou filtre pela <strong>data em que o pedido foi lançado</strong>, ou escolha direto em <strong>Número do Pedido</strong>.</li>
+              <li>Ao escolher o pedido, o <strong>Cliente</strong> é preenchido automaticamente (campo bloqueado).</li>
+              <li>Escolha o <strong>Produto</strong> devolvido e o <strong>Tipo</strong> (Unidades/kg).</li>
+              <li>Em <strong>Distribuição da devolução por parceiro</strong>, informe quem devolveu e quanto — a lista de parceiros já vem filtrada para quem realmente forneceu esse produto nesse pedido, e cada linha mostra o máximo permitido (o que aquele parceiro forneceu). Use <strong>➕ Adicionar parceiro</strong> para dividir a mesma devolução entre vários parceiros de uma vez, em vez de repetir o formulário um por um.</li>
+              <li>Preencha o <strong>Motivo</strong> (vale para todos os parceiros informados) e clique em <strong>Registrar Devolução</strong>: confirme os dados no resumo para gravar.</li>
+              <li>Assim como no Novo Pedido, os campos preenchidos <strong>não são apagados</strong> depois de enviar — use <strong>🧹 Limpar formulário</strong> para começar outra devolução do zero.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3 style="font-size:12px;">📋 Pedidos Registrados</h3></div>
+          <div class="card-body">
+            <ol style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;color:var(--ink-2);">
+              <li>Reúne Pedidos, Devoluções e Bonificações numa única tabela — use os filtros no topo (tipo, data, NFe, situação da NFe, cliente, parceiro, produto, unidade) para encontrar um registro específico.</li>
+              <li>✏️ edita a linha (inclusive a distribuição por parceiro de um pedido) e 🗑️ exclui — ambos pedem confirmação antes de gravar/apagar.</li>
+              <li><strong>🖨️ Relatório</strong> gera um PDF/impressão da lista já filtrada; <strong>🔄 Atualizar</strong> busca os dados mais recentes da planilha.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
     </div>`;
   const hoje = new Date();
   document.getElementById('lpData').value = hoje.toISOString().slice(0, 10);
@@ -3763,6 +3844,9 @@ function renderLancarTab() {
   document.getElementById('lpProdutosContainer').innerHTML = '';
   document.getElementById('lpBonificacoesContainer').innerHTML = '';
   _lpAdicionarProduto();
+  _devParceiroSeq = 0;
+  document.getElementById('devParceirosContainer').innerHTML = '';
+  _devAdicionarParceiro();
   _lpRestaurarCamposFiltrosRegistrados();
   carregarPedidosRegistrados();
   _comboAttachAll();
@@ -3877,6 +3961,46 @@ function _lpRemoverParceiro(produtoId, rowId) {
   if (row) row.remove();
   _lpAtualizarResumoProduto(produtoId);
 }
+
+// Distribuição por parceiro na aba "Registrar Devolução" — mesma ideia da
+// distribuição por parceiro do Novo Pedido (várias linhas de Parceiro +
+// Quantidade), mas aqui só existe um produto por vez (o já selecionado no
+// campo "Produto" acima), então não precisa de um id de produto por linha.
+let _devParceiroSeq = 0;
+function _devParceiroLinhaHtml(rowId) {
+  return `
+  <div class="form-row" data-row-id="${rowId}" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 160px 36px;gap:0 10px;align-items:start;">
+    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Parceiro</label><input list="dlDevParceirosProduto" class="form-control dev-parceiro-nome" autocomplete="off" oninput="_devAtualizarLimiteLinha(${rowId})"></div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label">Quantidade</label>
+      <input type="text" class="form-control num-mask dev-parceiro-qtde" inputmode="decimal">
+      <p class="text-muted dev-parceiro-max" style="margin:4px 0 0;font-size:10.5px;"></p>
+    </div>
+    <button type="button" class="btn-icon" title="Remover esta linha" onclick="_devRemoverParceiro(${rowId})" style="margin-top:20px;">🗑️</button>
+  </div>`;
+}
+function _devAdicionarParceiro() {
+  const rowId = ++_devParceiroSeq;
+  const container = document.getElementById('devParceirosContainer');
+  if (container) container.insertAdjacentHTML('beforeend', _devParceiroLinhaHtml(rowId));
+  _comboAttachAll();
+  _maskNumeroAll();
+}
+function _devRemoverParceiro(rowId) {
+  const container = document.getElementById('devParceirosContainer');
+  if (!container) return;
+  const row = container.querySelector(`[data-row-id="${rowId}"]`);
+  if (row) row.remove();
+}
+// Reinicia a lista de parceiros (chamado ao trocar de pedido, que invalida
+// qualquer parceiro já digitado) — some com as linhas antigas e já deixa uma
+// em branco pronta pra preencher.
+function _devReiniciarParceiros() {
+  _devParceiroSeq = 0;
+  const container = document.getElementById('devParceirosContainer');
+  if (container) container.innerHTML = '';
+  _devAdicionarParceiro();
+}
 // Soma o que já foi distribuído entre os parceiros e compara com a Qtde
 // Solicitada, pra quem está lançando ver em tempo real se falta, sobra ou
 // bateu certinho — sem precisar somar de cabeça linha por linha.
@@ -3958,12 +4082,6 @@ function _lpNormalizarPesquisa(valor) {
   return String(valor || '').trim().toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
-function _lpNfeDoRegistroRegistrado(registro) {
-  if (registro._tipo === 'Pedido') return registro.nfe || '';
-  const pedido = (AppState.lancar.pedidos || [])
-    .find(p => p.numero_pedido === registro.numero_pedido && p.nfe);
-  return pedido ? pedido.nfe : '';
-}
 function _lpParceirosDoRegistroRegistrado(registro) {
   if (registro._tipo === 'Pedido') {
     return (registro.parceiros || []).map(p => p.parceiro || '').join(' ');
@@ -3982,7 +4100,7 @@ function _lpFiltrarListaRegistrados(lista) {
     if (_lpFiltrosRegistrados.data && r.data !== _lpFiltrosRegistrados.data) return false;
     if (_lpFiltrosRegistrados.situacaoNfe === 'sem_nfe' &&
         (r._tipo !== 'Pedido' || _lpNormalizarNfe(r.nfe))) return false;
-    if (consultaNfe && !_lpNormalizarNfe(_lpNfeDoRegistroRegistrado(r)).includes(consultaNfe)) return false;
+    if (consultaNfe && !_lpNormalizarNfe(r.nfe).includes(consultaNfe)) return false;
     if (cliente && !_lpNormalizarPesquisa(r.cliente).includes(cliente)) return false;
     if (parceiro && !_lpNormalizarPesquisa(_lpParceirosDoRegistroRegistrado(r)).includes(parceiro)) return false;
     if (produto && !_lpNormalizarPesquisa(r.produto).includes(produto)) return false;
@@ -4145,7 +4263,7 @@ function gerarRelatorioPedidosRegistrados() {
           ? (r.parceiros || []).map(p => `${p.parceiro} (${fmtNum(p.quantidade)})`).join(', ')
           : (r.parceiro || '');
         return [
-          r._tipo, fmtDate(r.data), r.numero_pedido || '', ehPedido ? (r.nfe || '—') : '', r.cliente || '', parceiroExibido || '—',
+          r._tipo, fmtDate(r.data), r.numero_pedido || '', r.nfe || '—', r.cliente || '', parceiroExibido || '—',
           r.produto || '', fmtNum(ehPedido ? r.qtde_solicitada : r.quantidade), r.tipo || '',
           ehPedido ? (r.status || r.observacoes || '') : (r.motivo || '')
         ];
@@ -4193,7 +4311,7 @@ function _renderTabelaPedidosRegistrados(lista) {
       <td>${_lpBadgeTipo(r._tipo)}</td>
       <td>${fmtDate(r.data)}</td>
       <td><strong>${r.numero_pedido || ''}</strong></td>
-      <td>${ehPedido ? (r.nfe || '—') : ''}</td>
+      <td>${r.nfe || '—'}</td>
       <td>${r.cliente || ''}</td>
       <td>${parceiroExibido || '—'}</td>
       <td>${r.produto || ''}</td>
@@ -4523,21 +4641,55 @@ function _comboAttach(input) {
     menu.style.top = (r.bottom + 4) + 'px';
     menu.style.width = r.width + 'px';
   }
+  let listaAtual = [];
+  let indiceAtivo = -1;
   function render() {
     const consulta = input.value.trim().toLowerCase();
-    const lista = opcoes().filter(v => !consulta || v.toLowerCase().includes(consulta));
-    menu.innerHTML = lista.length
-      ? lista.slice(0, 60).map(v => `<div class="combo-option">${String(v).replace(/</g, '&lt;')}</div>`).join('')
+    listaAtual = opcoes().filter(v => !consulta || v.toLowerCase().includes(consulta)).slice(0, 60);
+    indiceAtivo = -1;
+    menu.innerHTML = listaAtual.length
+      ? listaAtual.map(v => `<div class="combo-option">${String(v).replace(/</g, '&lt;')}</div>`).join('')
       : '<div class="combo-empty">Nenhum resultado</div>';
+  }
+  function destacar(i) {
+    const opts = menu.querySelectorAll('.combo-option');
+    opts.forEach(o => o.classList.remove('combo-active'));
+    indiceAtivo = i;
+    if (i >= 0 && opts[i]) { opts[i].classList.add('combo-active'); opts[i].scrollIntoView({ block: 'nearest' }); }
   }
   function abrir() { posicionar(); render(); menu.hidden = false; }
   function fechar() { menu.hidden = true; }
 
   let selecionando = false;
+  // Confirma o valor escolhido (clique ou Enter) e já pula o foco pro
+  // próximo campo do formulário — evita ter que clicar/Tab manualmente
+  // depois de escolher um item filtrado.
+  function selecionar(valor) {
+    selecionando = true;
+    input.value = valor;
+    fechar();
+    // "input"/"change" disparados pra quem escuta o campo (ex.: gerar o
+    // Número do Pedido ao trocar o Cliente) reagir à seleção — a flag acima
+    // impede que o próprio listener de "input" reabra o menu por causa deles.
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    selecionando = false;
+    _focusarProximoCampo(input);
+  }
   input.addEventListener('focus', abrir);
   input.addEventListener('click', abrir);
   input.addEventListener('input', () => { if (!selecionando) abrir(); });
-  input.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { fechar(); return; }
+    if (menu.hidden) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); destacar(Math.min(indiceAtivo + 1, listaAtual.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); destacar(Math.max(indiceAtivo - 1, 0)); }
+    else if (e.key === 'Enter') {
+      if (!listaAtual.length) return;
+      e.preventDefault();
+      selecionar(listaAtual[indiceAtivo >= 0 ? indiceAtivo : 0]);
+    }
+  });
   // Fecha ao sair do campo (Tab, Enter/setas pulando de campo, clique fora
   // etc.) — sem isso a lista ficava aberta "flutuando" sobre o campo
   // seguinte. Seleção pelo mouse não dispara isso porque o mousedown do
@@ -4549,17 +4701,23 @@ function _comboAttach(input) {
     const opt = e.target.closest('.combo-option');
     if (!opt) return;
     e.preventDefault();
-    selecionando = true;
-    input.value = opt.textContent;
-    fechar();
-    // "input"/"change" disparados pra quem escuta o campo (ex.: gerar o
-    // Número do Pedido ao trocar o Cliente) reagir à seleção — a flag acima
-    // impede que o próprio listener de "input" reabra o menu por causa deles.
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    selecionando = false;
+    selecionar(opt.textContent);
   });
   document.addEventListener('click', e => { if (e.target !== input && e.target !== btnClear && !menu.contains(e.target)) fechar(); });
+}
+// Acha o próximo campo preenchível (input/select/textarea visível, não
+// desabilitado) depois do atual, na ordem em que aparecem na tela, e move o
+// foco pra lá — usado pelos campos com filtro (_comboAttach) pra já deixar o
+// próximo campo pronto pra digitar assim que um item é selecionado.
+function _focusarProximoCampo(atual) {
+  const campos = [...document.querySelectorAll('input, select, textarea')].filter(el =>
+    !el.disabled && el.tabIndex !== -1 && !el.classList.contains('combo-clear-btn') && el.offsetParent !== null
+  );
+  const idx = campos.indexOf(atual);
+  if (idx === -1 || idx === campos.length - 1) return;
+  const proximo = campos[idx + 1];
+  proximo.focus();
+  if (typeof proximo.select === 'function') proximo.select();
 }
 function _comboAttachAll(raiz) {
   (raiz || document).querySelectorAll('input[list]').forEach(_comboAttach);
@@ -4761,11 +4919,11 @@ function _lpPreencherClienteDevolucao() {
   // a data de hoje (quando a devolução está sendo registrada), não a data
   // do pedido original.
   if (pedido && pedido.data) document.getElementById('devFiltroData').value = pedido.data;
-  // Troca de pedido invalida qualquer Parceiro/Produto já digitado — limpa
-  // pra não deixar um valor de um pedido antigo parecendo válido no novo.
-  document.getElementById('devParceiro').value = '';
+  // Troca de pedido invalida qualquer Produto/Parceiro já digitado — limpa
+  // pra não deixar uma combinação de um pedido antigo parecendo válida no novo.
   document.getElementById('devProduto').value = '';
-  _lpAtualizarParceirosDevolucao();
+  _lpAtualizarProdutosDevolucao();
+  _devReiniciarParceiros();
 }
 
 // Um mesmo Número do Pedido tem uma linha por produto em "Controle de
@@ -4777,49 +4935,53 @@ function _lpLinhasDoPedidoDevolucao() {
   if (!numero) return [];
   return (AppState.lancar.pedidos || []).filter(p => p.numero_pedido === numero);
 }
-function _lpAtualizarParceirosDevolucao() {
-  const linhas = _lpLinhasDoPedidoDevolucao();
-  const parceiros = [...new Set(linhas.flatMap(l => (l.parceiros || []).map(p => p.parceiro)).filter(Boolean))].sort();
-  _lpPreencherDatalist('dlDevParceiros', parceiros);
-  _lpAtualizarProdutosDevolucao();
-}
+// Todos os produtos desse pedido — a devolução pode ser dividida entre
+// vários parceiros ao mesmo tempo, então a lista de produtos não depende
+// mais de um parceiro escolhido antes (isso agora é o inverso: escolhido o
+// produto, cada linha de parceiro abaixo já sugere só quem forneceu ele).
 function _lpAtualizarProdutosDevolucao() {
   const linhas = _lpLinhasDoPedidoDevolucao();
-  const parceiroAtual = document.getElementById('devParceiro').value.trim();
-  const relevantes = parceiroAtual
-    ? linhas.filter(l => (l.parceiros || []).some(p => p.parceiro === parceiroAtual))
-    : linhas;
-  const produtos = [...new Set(relevantes.map(l => l.produto).filter(Boolean))].sort();
+  const produtos = [...new Set(linhas.map(l => l.produto).filter(Boolean))].sort();
   _lpPreencherDatalist('dlDevProdutos', produtos);
-  // Parceiro trocado pode invalidar o produto já digitado (esse parceiro não
-  // atendeu aquele produto) — limpa pra não deixar uma combinação incoerente.
-  const campoProduto = document.getElementById('devProduto');
-  if (campoProduto.value && !produtos.includes(campoProduto.value)) campoProduto.value = '';
-  _lpAtualizarLimiteQtdeDevolucao();
 }
-
-// Quanto o parceiro selecionado ficou responsável de um produto dentro
-// desse pedido (ou, sem parceiro escolhido ainda, a qtde solicitada total
-// do produto) — é esse número que limita quanto pode ser devolvido, já que
-// devolver mais do que foi de fato entregue não faz sentido.
-function _lpLimiteQtdeDevolucao() {
+// Chamado ao trocar o Produto: atualiza a lista de parceiros sugerida em
+// cada linha de distribuição e recalcula o máximo permitido de quem já
+// estiver preenchido (o produto novo pode ter um limite diferente).
+function _devAoTrocarProduto() {
+  _devAtualizarDatalistParceiros();
+  _devAtualizarLimitesTodasLinhas();
+}
+function _devAtualizarDatalistParceiros() {
   const linhas = _lpLinhasDoPedidoDevolucao();
-  const produtoAtual  = document.getElementById('devProduto').value.trim();
-  const parceiroAtual = document.getElementById('devParceiro').value.trim();
-  if (!produtoAtual) return null;
+  const produtoAtual = document.getElementById('devProduto').value.trim();
+  const linha = linhas.find(l => l.produto === produtoAtual);
+  const parceiros = linha ? [...new Set((linha.parceiros || []).map(p => p.parceiro).filter(Boolean))].sort() : [];
+  _lpPreencherDatalist('dlDevParceirosProduto', parceiros);
+}
+// Quanto esse parceiro ficou responsável do produto selecionado, dentro
+// desse pedido — é esse número que limita quanto ele pode devolver, já que
+// devolver mais do que ele recebeu de fato não faz sentido.
+function _devLimiteQtdeParceiro(parceiroNome) {
+  const linhas = _lpLinhasDoPedidoDevolucao();
+  const produtoAtual = document.getElementById('devProduto').value.trim();
+  if (!produtoAtual || !parceiroNome) return null;
   const linha = linhas.find(l => l.produto === produtoAtual);
   if (!linha) return null;
-  if (parceiroAtual) {
-    const dist = (linha.parceiros || []).find(p => p.parceiro === parceiroAtual);
-    return dist ? dist.quantidade : null;
-  }
-  return linha.qtde_solicitada != null ? linha.qtde_solicitada : null;
+  const dist = (linha.parceiros || []).find(p => p.parceiro === parceiroNome);
+  return dist ? dist.quantidade : null;
 }
-function _lpAtualizarLimiteQtdeDevolucao() {
-  const hint = document.getElementById('devQtdeMax');
-  if (!hint) return;
-  const max = _lpLimiteQtdeDevolucao();
+function _devAtualizarLimiteLinha(rowId) {
+  const row = document.querySelector(`#devParceirosContainer [data-row-id="${rowId}"]`);
+  if (!row) return;
+  const parceiro = row.querySelector('.dev-parceiro-nome').value.trim();
+  const hint = row.querySelector('.dev-parceiro-max');
+  const max = _devLimiteQtdeParceiro(parceiro);
   hint.textContent = max != null ? `Máximo permitido: ${fmtNum(max)}` : '';
+}
+function _devAtualizarLimitesTodasLinhas() {
+  document.querySelectorAll('#devParceirosContainer [data-row-id]').forEach(row => {
+    _devAtualizarLimiteLinha(Number(row.dataset.rowId));
+  });
 }
 
 // Depois de gravar, limpa o cache de leitura e esquece o dashboard já
@@ -4907,7 +5069,9 @@ async function salvarNovoPedido() {
 // Reseta só a sub-aba "Novo Pedido" (Data volta pra hoje, Cliente/NFe/
 // Observações e a lista de produtos/parceiros ficam em branco) sem afetar a
 // tabela de "Pedidos Registrados" nem a sub-aba de Devolução.
-function _lpLimparNovoPedido() {
+async function _lpLimparNovoPedido() {
+  const ok = await confirmModal('Isso vai apagar Cliente, NFe, Observações e todos os produtos/parceiros já preenchidos neste pedido. Deseja continuar?', { titulo: 'Limpar formulário', textoOk: 'Limpar', perigo: true });
+  if (!ok) return;
   const hoje = new Date();
   document.getElementById('lpData').value = hoje.toISOString().slice(0, 10);
   document.getElementById('lpNfe').value = '';
@@ -4921,33 +5085,75 @@ function _lpLimparNovoPedido() {
   _comboAttachAll();
   _maskNumeroAll();
 }
+// Reseta só a sub-aba "Registrar Devolução" (filtros de busca, pedido
+// selecionado, Parceiro/Produto/Quantidade/Motivo) sem afetar a tabela de
+// "Pedidos Registrados" nem a sub-aba de Novo Pedido.
+async function _lpLimparDevolucao() {
+  const ok = await confirmModal('Isso vai apagar os filtros e os campos da devolução já preenchidos (Pedido, Produto, parceiros/quantidades e Motivo). Deseja continuar?', { titulo: 'Limpar formulário', textoOk: 'Limpar', perigo: true });
+  if (!ok) return;
+  document.getElementById('devFiltroNfe').value = '';
+  document.getElementById('devBuscaNfeResultado').textContent = '';
+  document.getElementById('devFiltroData').value = '';
+  document.getElementById('devData').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('devProduto').value = '';
+  document.getElementById('devTipo').value = 'Unidades';
+  document.getElementById('devMotivo').value = '';
+  // Limpa o pedido selecionado antes de repopular a lista — senão
+  // _lpPreencherSelectPedidos() mantém a seleção atual por ela continuar
+  // válida. O cascata _lpPreencherSelectPedidos() → _lpPreencherClienteDevolucao()
+  // já limpa devCliente, produtos e as linhas de parceiro/quantidade.
+  document.getElementById('devNumero').value = '';
+  _lpPreencherSelectPedidos();
+}
 
-function salvarDevolucao() {
-  const dados = {
-    data:           document.getElementById('devData').value,
-    numero_pedido:  document.getElementById('devNumero').value.trim(),
-    cliente:        document.getElementById('devCliente').value.trim(),
-    parceiro:       document.getElementById('devParceiro').value.trim(),
-    produto:        document.getElementById('devProduto').value.trim(),
-    quantidade:     _numVal(document.getElementById('devQtde')),
-    tipo:           document.getElementById('devTipo').value,
-    motivo:         document.getElementById('devMotivo').value.trim()
-  };
-  if (!dados.data || !dados.numero_pedido || !dados.cliente || !dados.parceiro || !dados.produto || !(Number(dados.quantidade) > 0)) {
-    toast('Preencha Data, Número do Pedido, Parceiro, Produto e uma Quantidade maior que zero.', 'error');
+async function salvarDevolucao() {
+  const data          = document.getElementById('devData').value;
+  const numero_pedido = document.getElementById('devNumero').value.trim();
+  const cliente        = document.getElementById('devCliente').value.trim();
+  const produto        = document.getElementById('devProduto').value.trim();
+  const tipo           = document.getElementById('devTipo').value;
+  const motivo         = document.getElementById('devMotivo').value.trim();
+
+  if (!data || !numero_pedido || !cliente || !produto) {
+    toast('Preencha Data, Número do Pedido e Produto.', 'error');
     return;
   }
-  const limite = _lpLimiteQtdeDevolucao();
-  if (limite != null && dados.quantidade > limite) {
-    toast(`Quantidade maior do que o pedido: ${dados.parceiro} recebeu apenas ${fmtNum(limite)} de "${dados.produto}" nesse pedido.`, 'error');
-    return;
-  }
+
+  // Mesmo padrão da distribuição por parceiro do "Novo Pedido": uma linha
+  // por parceiro, cada uma com sua própria quantidade — permite dividir a
+  // devolução desse produto entre vários parceiros numa única gravação, em
+  // vez de repetir o formulário inteiro um parceiro de cada vez.
+  const distribuicoes = [];
+  let erro = '';
+  const camposParceiro = [...document.querySelectorAll('#devParceirosContainer .dev-parceiro-nome')];
+  const camposQtde     = [...document.querySelectorAll('#devParceirosContainer .dev-parceiro-qtde')];
+  camposParceiro.forEach((campo, i) => {
+    const parceiro   = campo.value.trim();
+    const quantidade = _numVal(camposQtde[i]);
+    if (!parceiro && !quantidade) return; // linha em branco, ignora
+    if (!parceiro || !(quantidade > 0)) { erro = 'Preencha o parceiro e uma quantidade maior que zero em cada linha de distribuição.'; return; }
+    const limite = _devLimiteQtdeParceiro(parceiro);
+    if (limite != null && quantidade > limite) { erro = `Quantidade maior do que o pedido: ${parceiro} recebeu apenas ${fmtNum(limite)} de "${produto}" nesse pedido.`; return; }
+    distribuicoes.push({ parceiro, quantidade });
+  });
+  if (erro) { toast(erro, 'error'); return; }
+  if (!distribuicoes.length) { toast('Adicione ao menos um parceiro com uma quantidade maior que zero.', 'error'); return; }
+
+  const totalQtde = distribuicoes.reduce((s, d) => s + d.quantidade, 0);
+  const resumoParceiros = distribuicoes.map(d => `${d.parceiro} (${fmtNum(d.quantidade)})`).join(', ');
+  const ok = await confirmModal(`Confira os dados antes de enviar: ${fmtNum(totalQtde)} ${tipo} de "${produto}" — ${resumoParceiros} — referente ao pedido ${numero_pedido}. Deseja registrar a devolução?`, { titulo: 'Confirmar devolução', textoOk: 'Registrar' });
+  if (!ok) return;
+
   showLoading(true);
-  gs('lancarDevolucao', App.token, dados).then(() => {
+  gs('lancarDevolucao', App.token, { data, numero_pedido, cliente, produto, tipo, motivo, distribuicoes }).then(() => {
     showLoading(false);
     toast('Devolução registrada com sucesso.', 'success');
     _lpInvalidarCaches(['devolucoes', 'resumo']);
-    renderLancarTab();
+    // Não limpa o formulário sozinho — mesmo padrão do "Novo Pedido": só
+    // atualiza a tabela e as opções (limite de quantidade, lista de pedidos
+    // etc.). O botão "Limpar formulário" fica disponível pra quem realmente
+    // quiser começar do zero.
+    carregarPedidosRegistrados();
     loadLancarOpcoes();
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
