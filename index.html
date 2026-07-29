@@ -3638,8 +3638,9 @@ function renderLancarTab() {
           <div class="card-header"><h3 style="font-size:12px;">🎁 Bonificação deste pedido (opcional)</h3></div>
           <div class="card-body">
             <p class="text-muted" style="margin:-4px 0 12px;">
-              Use quando parte do que o cliente vai receber é reposição/cortesia (ex.: troca de produto que deu problema), não venda normal — grava direto em "Bonificações", já com a Data e o Número do Pedido deste lançamento.
+              Use quando parte do que o cliente vai receber é reposição/cortesia (ex.: troca de produto que deu problema), não venda normal — grava direto em "Bonificações", já com a Data e o Número do Pedido deste lançamento, mas com nota fiscal própria (a nota de bonificação é diferente da NFe do pedido).
             </p>
+            <div class="form-group" style="max-width:280px;"><label class="form-label">NFe da Bonificação (opcional)</label><input id="lpNfeBonificacao" class="form-control" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" placeholder="Nota fiscal de bonificação"></div>
             <div id="lpBonificacoesContainer"></div>
             <button type="button" class="btn btn-secondary btn-sm" onclick="_lpAdicionarBonificacao()">➕ Adicionar Bonificação</button>
           </div>
@@ -3758,6 +3759,7 @@ function renderLancarTab() {
           <div class="form-group"><label class="form-label">Tipo</label><select id="erTipo" class="form-control"><option value="Unidades">Unidades</option><option value="kg">kg</option></select></div>
           <div class="form-group"><label class="form-label">Quantidade</label><input type="text" id="erQtde" class="form-control num-mask" inputmode="decimal"></div>
           <div class="form-group"><label class="form-label">Motivo</label><input id="erMotivo" list="dlMotivosDevolucao" class="form-control" autocomplete="off"></div>
+          <div class="form-group hidden" id="erNfeWrap"><label class="form-label">NFe da Bonificação</label><input id="erNfe" class="form-control" autocomplete="off"></div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="fecharModal('modalEditarRegistro')">Cancelar</button>
@@ -3804,7 +3806,7 @@ function renderLancarTab() {
               <li>Digite o <strong>Cliente</strong> — o campo sugere nomes já usados conforme você digita.</li>
               <li>Em <strong>Produtos do pedido</strong>, preencha Produto, Qtde Solicitada e Tipo (Unidades/kg). Use <strong>➕ Adicionar Produto</strong> para incluir mais de um item no mesmo pedido.</li>
               <li><strong>Distribuição por parceiro</strong> é opcional aqui: dá pra já dizer quem vai atender (e dividir entre vários parceiros) ou deixar em branco e completar depois pela tabela "Pedidos Registrados".</li>
-              <li>Se parte do pedido for reposição/cortesia (não venda normal), preencha em <strong>🎁 Bonificação</strong> — vai para a aba de Bonificações, não para a distribuição normal.</li>
+              <li>Se parte do pedido for reposição/cortesia (não venda normal), preencha em <strong>🎁 Bonificação</strong> — vai para a aba de Bonificações, não para a distribuição normal, e leva uma <strong>NFe própria</strong> (a nota de bonificação, diferente da NFe do pedido).</li>
               <li>Clique em <strong>Lançar Pedido</strong>: o sistema mostra um resumo para confirmar antes de gravar. Depois de enviar, o formulário <strong>não é limpo automaticamente</strong> (útil pra repetir produtos/parceiros no próximo cliente) — use <strong>🧹 Limpar formulário</strong> quando quiser começar do zero (ele também pede confirmação).</li>
             </ol>
           </div>
@@ -4340,6 +4342,12 @@ function abrirEditarRegistro(nomeAba, linha) {
   _setNumVal(document.getElementById('erQtde'), r.quantidade);
   document.getElementById('erMotivo').value = r.motivo;
   document.getElementById('erMotivo').dataset.comboList = nomeAba === 'Devoluções' ? 'dlMotivosDevolucao' : 'dlMotivosBonificacao';
+  // NFe da bonificação é própria (nota de bonificação, diferente da NFe do
+  // pedido) — só faz sentido editar esse campo quando o registro é uma
+  // Bonificação; Devolução continua sem NFe própria.
+  const ehBonificacao = nomeAba === 'Bonificações';
+  document.getElementById('erNfeWrap').classList.toggle('hidden', !ehBonificacao);
+  document.getElementById('erNfe').value = ehBonificacao ? (r.nfe || '') : '';
   document.getElementById('modalEditarRegistroTitulo').textContent = nomeAba === 'Devoluções' ? '✏️ Editar Devolução' : '✏️ Editar Bonificação';
   document.getElementById('modalEditarRegistro').classList.add('show');
 }
@@ -4357,6 +4365,9 @@ function salvarEdicaoRegistro() {
     quantidade:     _numVal(document.getElementById('erQtde')),
     motivo:         document.getElementById('erMotivo').value.trim()
   };
+  if (edicao.nomeAba === 'Bonificações') {
+    dados.nfe = document.getElementById('erNfe').value.trim();
+  }
   if (!dados.data || !dados.cliente || !dados.parceiro || !dados.produto || !(Number(dados.quantidade) > 0)) {
     toast('Preencha Data, Cliente, Parceiro, Produto e uma Quantidade maior que zero.', 'error');
     return;
@@ -5000,6 +5011,7 @@ async function salvarNovoPedido() {
   const data          = document.getElementById('lpData').value;
   const semana        = document.getElementById('lpSemana').value;
   const nfe           = document.getElementById('lpNfe').value.trim();
+  const nfeBonificacao = document.getElementById('lpNfeBonificacao').value.trim();
   const cliente       = document.getElementById('lpCliente').value.trim();
   const observacoes   = document.getElementById('lpObservacoes').value.trim();
 
@@ -5054,7 +5066,7 @@ async function salvarNovoPedido() {
   if (!ok) return;
 
   showLoading(true);
-  gs('lancarPedido', App.token, { data, semana, nfe, cliente, observacoes, produtos, bonificacoes }).then(resultado => {
+  gs('lancarPedido', App.token, { data, semana, nfe, cliente, observacoes, produtos, bonificacoes, nfeBonificacao }).then(resultado => {
     showLoading(false);
     toast(`Pedido ${resultado.numero_pedido} lançado com sucesso.`, 'success');
     _lpInvalidarCaches(['pedidos', 'parceiros', 'resumo', 'devolucoes']);
@@ -5075,6 +5087,7 @@ async function _lpLimparNovoPedido() {
   const hoje = new Date();
   document.getElementById('lpData').value = hoje.toISOString().slice(0, 10);
   document.getElementById('lpNfe').value = '';
+  document.getElementById('lpNfeBonificacao').value = '';
   document.getElementById('lpCliente').value = '';
   document.getElementById('lpObservacoes').value = '';
   _lpAtualizarSemana();
