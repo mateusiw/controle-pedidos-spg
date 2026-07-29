@@ -110,6 +110,10 @@
     .btn-grow:hover .btn-label,.btn-grow:focus .btn-label,.btn-grow:focus-visible .btn-label{opacity:1;visibility:visible;}
     .card{background:var(--surface);border-radius:20px;border:1px solid var(--line);box-shadow:var(--shadow-sm);overflow:hidden;max-width:100%;min-width:0;transition:box-shadow .15s,border-color .15s,background .2s,color .2s;}
     .card-filtros{overflow:visible;}
+    /* Realça o bloco do produto sendo preenchido no momento (foco em
+       qualquer campo dele), pra quem está lançando vários produtos não se
+       perder sobre qual bloco está editando. */
+    #lpProdutosContainer .card:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft);}
     canvas{max-width:100%;}
     .card-header{padding:12px 20px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 12px;}
     .card-header h3{margin:0;font-size:13px;font-weight:700;color:var(--ink);flex:1 1 auto;min-width:0;overflow-wrap:break-word;word-break:break-word;}
@@ -3607,6 +3611,7 @@ function renderLancarTab() {
         </div>
         <br>
         <button class="btn btn-primary" onclick="salvarNovoPedido()">Lançar Pedido</button>
+        <button type="button" class="btn btn-secondary" onclick="_lpLimparNovoPedido()" title="Limpa Cliente, NFe e os produtos/parceiros preenchidos">🧹 Limpar formulário</button>
       </div>
     </div>
     </div>
@@ -3620,7 +3625,7 @@ function renderLancarTab() {
           <input id="devFiltroNfe" class="form-control" inputmode="numeric" autocomplete="off" placeholder="Ex.: 7029" oninput="_lpPreencherSelectPedidos()">
           <p class="text-muted" id="devBuscaNfeResultado" style="margin:4px 0 0;"></p>
         </div>
-        <div class="form-group"><label class="form-label">Filtrar pedidos lançados no dia (opcional)</label><input type="date" id="devFiltroData" class="form-control" onchange="_lpPreencherSelectPedidos()"></div>
+        <div class="form-group"><label class="form-label">Filtrar pedidos lançados no dia (opcional)</label><input type="date" id="devFiltroData" class="form-control" onchange="_lpFiltrarDevolucaoPorData()"></div>
         <div class="form-group"><label class="form-label">Número do Pedido</label><select id="devNumero" class="form-control" onchange="_lpPreencherClienteDevolucao()"><option value="">Selecione...</option></select></div>
         <div class="form-group"><label class="form-label">Cliente <span class="auto-badge">🔒 Automático</span></label><input id="devCliente" class="form-control form-control-auto" readonly title="Preenchido automaticamente pelo pedido selecionado"></div>
         <div class="form-group"><label class="form-label">Data do registro da devolução</label><input type="date" id="devData" class="form-control"></div>
@@ -3788,16 +3793,18 @@ function _lpProdutoBlocoHtml(produtoId) {
   return `
   <div class="card mb-3" data-produto-id="${produtoId}" style="background:var(--surface-2);">
     <div class="card-header">
-      <h3 style="font-size:12px;">Produto</h3>
+      <h3 class="lp-produto-titulo" style="font-size:12px;">Produto</h3>
+      <span class="lp-produto-resumo" id="lpProdutoResumo_${produtoId}" style="flex-shrink:0;font-size:11px;font-weight:700;"></span>
       <button type="button" class="btn-icon" title="Remover este produto" onclick="_lpRemoverProduto(${produtoId})">🗑️</button>
     </div>
     <div class="card-body">
       <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 10px;">
-        <div class="form-group"><label class="form-label">Produto</label><input list="dlProdutos" class="form-control lp-produto-nome" autocomplete="off"></div>
+        <div class="form-group"><label class="form-label">Produto</label><input list="dlProdutos" class="form-control lp-produto-nome" autocomplete="off" oninput="_lpAtualizarParceirosProduto(${produtoId})"></div>
         <div class="form-group"><label class="form-label">Qtde Solicitada</label><input type="text" class="form-control num-mask lp-produto-qtde" inputmode="decimal"></div>
         <div class="form-group"><label class="form-label">Tipo</label><select class="form-control lp-produto-tipo"><option value="Unidades">Unidades</option><option value="kg">kg</option></select></div>
       </div>
-      <label class="form-label" style="display:block;margin:4px 0 8px;">Distribuição por parceiro <span style="font-weight:400;opacity:.7;">(opcional — pode completar depois pela tabela "Pedidos Registrados")</span></label>
+      <datalist id="lpDlParceirosProduto_${produtoId}"></datalist>
+      <label class="form-label" style="display:block;margin:4px 0 8px;">Distribuição por parceiro <span style="font-weight:400;opacity:.7;">(opcional — pode completar depois pela tabela "Pedidos Registrados"; lista já filtrada pelos parceiros que costumam fornecer o produto selecionado)</span></label>
       <div class="lp-parceiros-lista" id="lpParceiros_${produtoId}"></div>
       <button type="button" class="btn btn-secondary btn-sm" onclick="_lpAdicionarParceiro(${produtoId})">➕ Adicionar parceiro</button>
     </div>
@@ -3806,7 +3813,7 @@ function _lpProdutoBlocoHtml(produtoId) {
 function _lpParceiroLinhaHtml(produtoId, rowId) {
   return `
   <div class="form-row" data-row-id="${rowId}" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 130px 36px;gap:0 10px;align-items:end;">
-    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Parceiro</label><input list="dlParceiros" class="form-control lp-parceiro-nome" autocomplete="off"></div>
+    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Parceiro</label><input list="lpDlParceirosProduto_${produtoId}" class="form-control lp-parceiro-nome" autocomplete="off"></div>
     <div class="form-group" style="margin-bottom:0;"><label class="form-label">Quantidade</label><input type="text" class="form-control num-mask lp-parceiro-qtde" inputmode="decimal"></div>
     <button type="button" class="btn-icon" title="Remover esta linha" onclick="_lpRemoverParceiro(${produtoId}, ${rowId})" style="margin-bottom:1px;">🗑️</button>
   </div>`;
@@ -3817,10 +3824,43 @@ function _lpAdicionarProduto() {
   _lpAdicionarParceiro(id);
   _comboAttachAll();
   _maskNumeroAll();
+  _lpAtualizarResumoProduto(id);
+  _lpAtualizarParceirosProduto(id);
+  _lpRenumerarProdutos();
 }
 function _lpRemoverProduto(produtoId) {
   const el = document.querySelector(`[data-produto-id="${produtoId}"]`);
   if (el) el.remove();
+  _lpRenumerarProdutos();
+}
+// Numera os blocos de produto na ordem em que aparecem na tela ("Produto 1",
+// "Produto 2"...) — o id interno (data-produto-id) não serve pra isso porque
+// não muda ao remover um produto do meio da lista, o que deixaria buracos
+// na numeração e confundiria quem está preenchendo vários produtos.
+function _lpRenumerarProdutos() {
+  document.querySelectorAll('#lpProdutosContainer [data-produto-id] .lp-produto-titulo').forEach((titulo, i) => {
+    titulo.textContent = `Produto ${i + 1}`;
+  });
+}
+// Restringe a lista de parceiros sugerida na distribuição desse produto aos
+// que já forneceram esse mesmo produto em pedidos anteriores (histórico em
+// AppState.lancar.pedidos). Sem histórico para o produto (ainda não vendido
+// ou nome novo), cai de volta pra lista geral de parceiros — pra não travar
+// o lançamento de um produto/parceiro inédito.
+function _lpAtualizarParceirosProduto(produtoId) {
+  const bloco = document.querySelector(`[data-produto-id="${produtoId}"]`);
+  if (!bloco) return;
+  const nomeProduto = bloco.querySelector('.lp-produto-nome').value.trim();
+  let parceiros = nomeProduto
+    ? [...new Set(
+        (AppState.lancar.pedidos || [])
+          .filter(p => p.produto === nomeProduto)
+          .flatMap(p => (p.parceiros || []).map(pc => pc.parceiro))
+          .filter(Boolean)
+      )].sort()
+    : [];
+  if (!parceiros.length) parceiros = (AppState.lancar.opcoes && AppState.lancar.opcoes.parceiros) || [];
+  _lpPreencherDatalist('lpDlParceirosProduto_' + produtoId, parceiros);
 }
 function _lpAdicionarParceiro(produtoId) {
   const rowId = ++_lpParceiroSeq;
@@ -3828,13 +3868,46 @@ function _lpAdicionarParceiro(produtoId) {
   if (container) container.insertAdjacentHTML('beforeend', _lpParceiroLinhaHtml(produtoId, rowId));
   _comboAttachAll();
   _maskNumeroAll();
+  _lpAtualizarResumoProduto(produtoId);
 }
 function _lpRemoverParceiro(produtoId, rowId) {
   const container = document.getElementById('lpParceiros_' + produtoId);
   if (!container) return;
   const row = container.querySelector(`[data-row-id="${rowId}"]`);
   if (row) row.remove();
+  _lpAtualizarResumoProduto(produtoId);
 }
+// Soma o que já foi distribuído entre os parceiros e compara com a Qtde
+// Solicitada, pra quem está lançando ver em tempo real se falta, sobra ou
+// bateu certinho — sem precisar somar de cabeça linha por linha.
+function _lpAtualizarResumoProduto(produtoId) {
+  const bloco = document.querySelector(`[data-produto-id="${produtoId}"]`);
+  if (!bloco) return;
+  const badge = document.getElementById('lpProdutoResumo_' + produtoId);
+  if (!badge) return;
+  const solicitada = _numVal(bloco.querySelector('.lp-produto-qtde'));
+  const distribuida = [...bloco.querySelectorAll('.lp-parceiro-qtde')].reduce((soma, campo) => soma + _numVal(campo), 0);
+  if (!solicitada && !distribuida) { badge.textContent = ''; return; }
+  const pendente = solicitada - distribuida;
+  const percentual = solicitada ? Math.round((distribuida / solicitada) * 100) : 0;
+  let cor = 'var(--muted)';
+  let texto = `${fmtNum(distribuida)} / ${fmtNum(solicitada)} (${percentual}%)`;
+  if (solicitada > 0) {
+    if (pendente > 0) { cor = 'var(--warning, #b45309)'; texto += ` — faltam ${fmtNum(pendente)}`; }
+    else if (pendente < 0) { cor = 'var(--danger, #dc2626)'; texto += ` — excede em ${fmtNum(-pendente)}`; }
+    else { cor = 'var(--success, #16a34a)'; texto += ' — completo'; }
+  }
+  badge.style.color = cor;
+  badge.textContent = texto;
+}
+// Delegação: qualquer alteração nos campos de quantidade (solicitada ou de
+// um parceiro) recalcula o resumo do produto correspondente, incluindo
+// linhas adicionadas/removidas dinamicamente.
+document.addEventListener('input', e => {
+  if (!e.target.matches('.lp-produto-qtde, .lp-parceiro-qtde')) return;
+  const bloco = e.target.closest('[data-produto-id]');
+  if (bloco) _lpAtualizarResumoProduto(bloco.dataset.produtoId);
+});
 
 // ── Bonificação vinculada ao mesmo pedido (ex.: reposição de produto que
 // deu problema) — lista à parte dos produtos vendidos, opcional, grava
@@ -4465,6 +4538,11 @@ function _comboAttach(input) {
   input.addEventListener('click', abrir);
   input.addEventListener('input', () => { if (!selecionando) abrir(); });
   input.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
+  // Fecha ao sair do campo (Tab, Enter/setas pulando de campo, clique fora
+  // etc.) — sem isso a lista ficava aberta "flutuando" sobre o campo
+  // seguinte. Seleção pelo mouse não dispara isso porque o mousedown do
+  // menu/botão "x" já faz preventDefault e mantém o foco no input.
+  input.addEventListener('blur', fechar);
   window.addEventListener('scroll', () => { if (!menu.hidden) posicionar(); }, true);
   window.addEventListener('resize', () => { if (!menu.hidden) posicionar(); });
   menu.addEventListener('mousedown', e => {
@@ -4509,6 +4587,89 @@ function _maskNumero(input) {
 function _maskNumeroAll(raiz) {
   (raiz || document).querySelectorAll('.num-mask').forEach(_maskNumero);
 }
+
+// ── Enter pula pro próximo campo (em vez de não fazer nada) ──
+// Vale pra qualquer tela do sistema: dentro de um card, de um modal ou da
+// tela de login. Pula só entre campos visíveis (ignora os escondidos em
+// abas/painéis fechados) e na ordem em que aparecem no HTML. Campos que já
+// têm um onkeydown próprio no atributo (ex.: login) ficam de fora pra não
+// disputar o Enter com o comportamento que já existia ali.
+function _campoNavegavelPorEnter(el) {
+  if (!el || !el.matches || !el.matches('input, select')) return false;
+  if (el.disabled) return false;
+  // readonly normalmente é campo travado (automático/bloqueado) — exceto os
+  // "readonly até focar" (NFe), que só usam isso pra evitar autofill do navegador.
+  if (el.readOnly && !el.hasAttribute('onfocus')) return false;
+  if (el.matches('input')) {
+    const tipo = (el.getAttribute('type') || 'text').toLowerCase();
+    if (['button', 'submit', 'checkbox', 'radio', 'file', 'range', 'color', 'hidden'].includes(tipo)) return false;
+  }
+  return el.getClientRects().length > 0; // display:none (aba/modal fechado) some daqui
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+  const atual = e.target;
+  if (!_campoNavegavelPorEnter(atual) || atual.hasAttribute('onkeydown')) return;
+  const campos = [...document.querySelectorAll('input, select')].filter(_campoNavegavelPorEnter);
+  const i = campos.indexOf(atual);
+  const proximo = i > -1 ? campos[i + 1] : null;
+  e.preventDefault();
+  if (proximo) {
+    proximo.focus();
+    if (proximo.tagName === 'INPUT') proximo.select();
+  } else {
+    atual.blur();
+  }
+});
+
+// ── Setas (↑↓←→) pulam de campo em campo, estilo planilha ──
+// Usa a posição de cada campo na tela (não a ordem do HTML), pra funcionar
+// bem nos formulários em grade de 2 colunas: ↓/↑ pulam pro campo mais
+// próximo abaixo/acima, ←/→ pro mais próximo à esquerda/direita. Em campo
+// de data ou número não mexe — ali as setas servem pra ajustar dia/mês/ano
+// ou incrementar o valor, o que é mais útil do que trocar de campo.
+function _campoNavegavelPorSeta(el) {
+  if (!_campoNavegavelPorEnter(el)) return false;
+  const tipo = el.matches('input') ? (el.getAttribute('type') || 'text').toLowerCase() : '';
+  return tipo !== 'date' && tipo !== 'number';
+}
+function _campoMaisProximo(atual, direcao) {
+  const rAtual = atual.getBoundingClientRect();
+  const cxAtual = rAtual.left + rAtual.width / 2, cyAtual = rAtual.top + rAtual.height / 2;
+  let melhor = null, melhorScore = Infinity;
+  document.querySelectorAll('input, select').forEach(c => {
+    if (c === atual || !_campoNavegavelPorSeta(c)) return;
+    const r = c.getBoundingClientRect();
+    const dx = (r.left + r.width / 2) - cxAtual, dy = (r.top + r.height / 2) - cyAtual;
+    if (direcao === 'down' && dy <= 4) return;
+    if (direcao === 'up' && dy >= -4) return;
+    if (direcao === 'right' && dx <= 4) return;
+    if (direcao === 'left' && dx >= -4) return;
+    const score = (direcao === 'up' || direcao === 'down') ? Math.abs(dy) * 3 + Math.abs(dx) : Math.abs(dx) * 3 + Math.abs(dy);
+    if (score < melhorScore) { melhorScore = score; melhor = c; }
+  });
+  return melhor;
+}
+document.addEventListener('keydown', e => {
+  const setas = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+  const direcao = setas[e.key];
+  if (!direcao || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+  const atual = e.target;
+  if (!_campoNavegavelPorSeta(atual) || atual.hasAttribute('onkeydown')) return;
+  if ((direcao === 'left' || direcao === 'right') && atual.matches('input')) {
+    // dentro do texto: só troca de campo quando o cursor já está na ponta,
+    // senão deixa o navegador mover o cursor normalmente
+    if (atual.selectionStart !== atual.selectionEnd) return;
+    if (direcao === 'left' && atual.selectionStart !== 0) return;
+    if (direcao === 'right' && atual.selectionEnd !== atual.value.length) return;
+  }
+  const proximo = _campoMaisProximo(atual, direcao);
+  if (!proximo) return;
+  e.preventDefault();
+  proximo.focus();
+  if (proximo.tagName === 'INPUT') proximo.select();
+});
+
 // Converte de volta "9.000,5" → 9000.5 (número de verdade), pro que é
 // digitado no formato brasileiro virar o valor certo pra mandar ao backend.
 function _parseNumFormatado(str) {
@@ -4543,6 +4704,16 @@ function _lpEscapeHtml(valor) {
 // sobre a data, para uma data que tenha ficado preenchida não esconder o
 // pedido procurado. Ao encontrar exatamente uma NF, já seleciona o pedido
 // correspondente e dispara o preenchimento dos demais campos.
+// Ao filtrar por data, uma NF já digitada teria prioridade e esconderia o
+// efeito do filtro (a busca por NFe ignora a data) — então filtrar por data
+// limpa a NF antes, pra lista suspensa passar a mostrar os pedidos do dia.
+function _lpFiltrarDevolucaoPorData() {
+  const campoNfe = document.getElementById('devFiltroNfe');
+  if (campoNfe) campoNfe.value = '';
+  const hint = document.getElementById('devBuscaNfeResultado');
+  if (hint) hint.textContent = '';
+  _lpPreencherSelectPedidos();
+}
 function _lpPreencherSelectPedidos() {
   const sel = document.getElementById('devNumero');
   if (!sel) return;
@@ -4585,6 +4756,11 @@ function _lpPreencherClienteDevolucao() {
   const numero = document.getElementById('devNumero').value;
   const pedido = _lpPedidosList.find(p => p.numero_pedido === numero);
   document.getElementById('devCliente').value = pedido ? pedido.cliente : '';
+  // Ao achar o pedido (ex.: pesquisando pela NFe), mostra a data do próprio
+  // pedido no filtro "lançados no dia" — a Data do registro da devolução é
+  // a data de hoje (quando a devolução está sendo registrada), não a data
+  // do pedido original.
+  if (pedido && pedido.data) document.getElementById('devFiltroData').value = pedido.data;
   // Troca de pedido invalida qualquer Parceiro/Produto já digitado — limpa
   // pra não deixar um valor de um pedido antigo parecendo válido no novo.
   document.getElementById('devParceiro').value = '';
@@ -4658,7 +4834,7 @@ function _lpInvalidarCaches(abas) {
   if (abas.includes('resumo'))     AppState.resumo.resumo = null;
 }
 
-function salvarNovoPedido() {
+async function salvarNovoPedido() {
   const data          = document.getElementById('lpData').value;
   const semana        = document.getElementById('lpSemana').value;
   const nfe           = document.getElementById('lpNfe').value.trim();
@@ -4712,14 +4888,38 @@ function salvarNovoPedido() {
 
   if (erro) { toast(erro, 'error'); return; }
 
+  const ok = await confirmModal('Confira os dados antes de enviar: ' + produtos.length + ' produto(s) para ' + cliente + '. Deseja enviar o pedido ou revisar antes?', { titulo: 'Confirmar lançamento', textoOk: 'Enviar' });
+  if (!ok) return;
+
   showLoading(true);
   gs('lancarPedido', App.token, { data, semana, nfe, cliente, observacoes, produtos, bonificacoes }).then(resultado => {
     showLoading(false);
     toast(`Pedido ${resultado.numero_pedido} lançado com sucesso.`, 'success');
     _lpInvalidarCaches(['pedidos', 'parceiros', 'resumo', 'devolucoes']);
-    renderLancarTab();
+    // Não limpa o formulário sozinho — quem está lançando pode querer repetir
+    // os mesmos produtos/parceiros pro próximo cliente ou nota fiscal. Só
+    // atualiza a tabela e as opções (datalists); o botão "Limpar formulário"
+    // fica disponível pra quem realmente quiser começar do zero.
+    carregarPedidosRegistrados();
     loadLancarOpcoes();
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
+}
+// Reseta só a sub-aba "Novo Pedido" (Data volta pra hoje, Cliente/NFe/
+// Observações e a lista de produtos/parceiros ficam em branco) sem afetar a
+// tabela de "Pedidos Registrados" nem a sub-aba de Devolução.
+function _lpLimparNovoPedido() {
+  const hoje = new Date();
+  document.getElementById('lpData').value = hoje.toISOString().slice(0, 10);
+  document.getElementById('lpNfe').value = '';
+  document.getElementById('lpCliente').value = '';
+  document.getElementById('lpObservacoes').value = '';
+  _lpAtualizarSemana();
+  _lpProdutoSeq = 0; _lpParceiroSeq = 0; _lpBonSeq = 0;
+  document.getElementById('lpProdutosContainer').innerHTML = '';
+  document.getElementById('lpBonificacoesContainer').innerHTML = '';
+  _lpAdicionarProduto();
+  _comboAttachAll();
+  _maskNumeroAll();
 }
 
 function salvarDevolucao() {
