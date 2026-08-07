@@ -3734,6 +3734,14 @@ function renderLancarTab() {
               <option value="kg">kg</option>
             </select>
           </div>
+          <div class="filter-item">
+            <label class="form-label">Distribuição por parceiro</label>
+            <select id="lpFiltroSituacaoDistribuicaoRegistrados" class="form-control" onchange="_lpAplicarFiltrosRegistrados()">
+              <option value="">Todas as situações</option>
+              <option value="pendente">⚠️ Pendente (falta parceiro/quantidade)</option>
+              <option value="completo">Completa</option>
+            </select>
+          </div>
           <div class="filter-item" style="flex:0 0 auto;">
             <button class="btn btn-secondary btn-sm" onclick="_lpLimparFiltrosRegistrados()">Limpar filtros</button>
           </div>
@@ -3759,7 +3767,6 @@ function renderLancarTab() {
           <div class="form-group"><label class="form-label">Tipo</label><select id="erTipo" class="form-control"><option value="Unidades">Unidades</option><option value="kg">kg</option></select></div>
           <div class="form-group"><label class="form-label">Quantidade</label><input type="text" id="erQtde" class="form-control num-mask" inputmode="decimal"></div>
           <div class="form-group"><label class="form-label">Motivo</label><input id="erMotivo" list="dlMotivosDevolucao" class="form-control" autocomplete="off"></div>
-          <div class="form-group hidden" id="erNfeWrap"><label class="form-label">NFe da Bonificação</label><input id="erNfe" class="form-control" autocomplete="off"></div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="fecharModal('modalEditarRegistro')">Cancelar</button>
@@ -3792,6 +3799,29 @@ function renderLancarTab() {
       </div>
     </div>
 
+    <div class="modal-overlay" id="modalEditarBonificacao">
+      <div class="modal modal-lg">
+        <div class="modal-header"><h3>✏️ Editar Bonificação</h3><button class="btn-icon" onclick="fecharModal('modalEditarBonificacao')">✕</button></div>
+        <div class="form-row cols-2">
+          <div class="form-group"><label class="form-label">Data</label><input type="date" id="ebData" class="form-control"></div>
+          <div class="form-group"><label class="form-label">Número do Pedido <span class="auto-badge">🔒 Bloqueado</span></label><input id="ebNumero" class="form-control form-control-auto" readonly title="Este vínculo não pode ser alterado"></div>
+          <div class="form-group"><label class="form-label">NFe da Bonificação (opcional)</label><input id="ebNfe" class="form-control" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')"></div>
+          <div class="form-group"><label class="form-label">Cliente</label><input id="ebCliente" list="dlClientes" class="form-control" autocomplete="off"></div>
+          <div class="form-group"><label class="form-label">Produto</label><input id="ebProduto" list="dlProdutos" class="form-control" autocomplete="off"></div>
+          <div class="form-group"><label class="form-label">Tipo</label><select id="ebTipo" class="form-control"><option value="Unidades">Unidades</option><option value="kg">kg</option></select></div>
+          <div class="form-group"><label class="form-label">Qtde Solicitada</label><input type="text" id="ebQtdeSolicitada" class="form-control num-mask" inputmode="decimal"></div>
+        </div>
+        <label class="form-label" style="display:block;margin:4px 0 8px;">Distribuição por parceiro <span style="font-weight:400;opacity:.7;">(opcional)</span></label>
+        <div class="lp-parceiros-lista" id="ebParceirosLista"></div>
+        <button type="button" class="btn btn-secondary btn-sm mb-3" onclick="_ebAdicionarParceiro()">➕ Adicionar parceiro</button>
+        <div class="form-group"><label class="form-label">Motivo (opcional)</label><input id="ebMotivo" list="dlMotivosBonificacao" class="form-control" autocomplete="off"></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modalEditarBonificacao')">Cancelar</button>
+          <button class="btn btn-primary" onclick="salvarEdicaoBonificacao()">Salvar</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-overlay" id="modalAjudaLancamentos">
       <div class="modal modal-lg">
         <div class="modal-header"><h3>❓ Como usar a aba Lançamentos</h3><button class="btn-icon" onclick="fecharModal('modalAjudaLancamentos')">✕</button></div>
@@ -3806,7 +3836,7 @@ function renderLancarTab() {
               <li>Digite o <strong>Cliente</strong> — o campo sugere nomes já usados conforme você digita.</li>
               <li>Em <strong>Produtos do pedido</strong>, preencha Produto, Qtde Solicitada e Tipo (Unidades/kg). Use <strong>➕ Adicionar Produto</strong> para incluir mais de um item no mesmo pedido.</li>
               <li><strong>Distribuição por parceiro</strong> é opcional aqui: dá pra já dizer quem vai atender (e dividir entre vários parceiros) ou deixar em branco e completar depois pela tabela "Pedidos Registrados".</li>
-              <li>Se parte do pedido for reposição/cortesia (não venda normal), preencha em <strong>🎁 Bonificação</strong> — vai para a aba de Bonificações, não para a distribuição normal, e leva uma <strong>NFe própria</strong> (a nota de bonificação, diferente da NFe do pedido).</li>
+              <li>Se parte do pedido for reposição/cortesia (não venda normal), preencha em <strong>🎁 Bonificação</strong> — vai para "Controle de Bonificações", não para a distribuição normal, e leva uma <strong>NFe própria</strong> (a nota de bonificação, diferente da NFe do pedido). Assim como em Produtos, dá pra preencher só Produto/Qtde Solicitada/Tipo e deixar a distribuição por parceiro em branco, completando depois pela tabela "Pedidos Registrados".</li>
               <li>Clique em <strong>Lançar Pedido</strong>: o sistema mostra um resumo para confirmar antes de gravar. Depois de enviar, o formulário <strong>não é limpo automaticamente</strong> (útil pra repetir produtos/parceiros no próximo cliente) — use <strong>🧹 Limpar formulário</strong> quando quiser começar do zero (ele também pede confirmação).</li>
             </ol>
           </div>
@@ -3842,7 +3872,7 @@ function renderLancarTab() {
   document.getElementById('lpData').value = hoje.toISOString().slice(0, 10);
   document.getElementById('devData').value = hoje.toISOString().slice(0, 10);
   _lpAtualizarSemana();
-  _lpProdutoSeq = 0; _lpParceiroSeq = 0; _lpBonSeq = 0;
+  _lpProdutoSeq = 0; _lpParceiroSeq = 0; _lpBonSeq = 0; _lpBonParceiroSeq = 0;
   document.getElementById('lpProdutosContainer').innerHTML = '';
   document.getElementById('lpBonificacoesContainer').innerHTML = '';
   _lpAdicionarProduto();
@@ -4030,39 +4060,109 @@ function _lpAtualizarResumoProduto(produtoId) {
 // um parceiro) recalcula o resumo do produto correspondente, incluindo
 // linhas adicionadas/removidas dinamicamente.
 document.addEventListener('input', e => {
-  if (!e.target.matches('.lp-produto-qtde, .lp-parceiro-qtde')) return;
-  const bloco = e.target.closest('[data-produto-id]');
-  if (bloco) _lpAtualizarResumoProduto(bloco.dataset.produtoId);
+  if (e.target.matches('.lp-produto-qtde, .lp-parceiro-qtde')) {
+    const bloco = e.target.closest('[data-produto-id]');
+    if (bloco) _lpAtualizarResumoProduto(bloco.dataset.produtoId);
+    return;
+  }
+  if (e.target.matches('.lp-bon-qtde, .lp-bon-parceiro-qtde')) {
+    const bloco = e.target.closest('[data-bon-id]');
+    if (bloco) _lpAtualizarResumoBonificacao(bloco.dataset.bonId);
+  }
 });
 
 // ── Bonificação vinculada ao mesmo pedido (ex.: reposição de produto que
 // deu problema) — lista à parte dos produtos vendidos, opcional, grava
-// direto em "Bonificações" usando a mesma Data/Número do Pedido/Cliente. ──
-let _lpBonSeq = 0;
-function _lpBonLinhaHtml(rowId) {
+// direto em "Bonificações" usando a mesma Data/Número do Pedido/Cliente.
+// Mesma estrutura do bloco de Produto: primeiro Produto/Qtde Solicitada/Tipo,
+// depois a distribuição por parceiro (parceiro + quantidade, podendo ter
+// vários parceiros pra um mesmo produto bonificado). ──
+let _lpBonSeq = 0, _lpBonParceiroSeq = 0;
+function _lpBonBlocoHtml(bonId) {
   return `
-  <div class="form-row cols-2" data-bon-id="${rowId}" style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line);">
-    <div class="form-group"><label class="form-label">Produto</label><input list="dlProdutos" class="form-control lp-bon-produto" autocomplete="off"></div>
-    <div class="form-group"><label class="form-label">Parceiro</label><input list="dlParceiros" class="form-control lp-bon-parceiro" autocomplete="off"></div>
-    <div class="form-group"><label class="form-label">Quantidade</label><input type="text" class="form-control num-mask lp-bon-qtde" inputmode="decimal"></div>
-    <div class="form-group"><label class="form-label">Tipo</label><select class="form-control lp-bon-tipo"><option value="Unidades">Unidades</option><option value="kg">kg</option></select></div>
-    <div class="form-group" style="grid-column:1/-1;display:flex;gap:8px;align-items:flex-end;">
-      <div style="flex:1;"><label class="form-label">Motivo</label><input list="dlMotivosBonificacao" class="form-control lp-bon-motivo" autocomplete="off"></div>
-      <button type="button" class="btn-icon" title="Remover esta bonificação" onclick="_lpRemoverBonificacao(${rowId})">🗑️</button>
+  <div class="card mb-3" data-bon-id="${bonId}" style="background:var(--surface-2);">
+    <div class="card-header">
+      <h3 class="lp-bon-titulo" style="font-size:12px;">Bonificação</h3>
+      <span class="lp-bon-resumo" id="lpBonResumo_${bonId}" style="flex-shrink:0;font-size:11px;font-weight:700;"></span>
+      <button type="button" class="btn-icon" title="Remover esta bonificação" onclick="_lpRemoverBonificacao(${bonId})">🗑️</button>
+    </div>
+    <div class="card-body">
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 10px;">
+        <div class="form-group"><label class="form-label">Produto</label><input list="dlProdutos" class="form-control lp-bon-produto" autocomplete="off"></div>
+        <div class="form-group"><label class="form-label">Qtde Solicitada</label><input type="text" class="form-control num-mask lp-bon-qtde" inputmode="decimal"></div>
+        <div class="form-group"><label class="form-label">Tipo</label><select class="form-control lp-bon-tipo"><option value="Unidades">Unidades</option><option value="kg">kg</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Motivo</label><input list="dlMotivosBonificacao" class="form-control lp-bon-motivo" autocomplete="off"></div>
+      <label class="form-label" style="display:block;margin:4px 0 8px;">Distribuição por parceiro <span style="font-weight:400;opacity:.7;">(opcional — pode completar depois pela tabela "Pedidos Registrados"; quem vai receber a bonificação e a quantidade)</span></label>
+      <div class="lp-bon-parceiros-lista" id="lpBonParceiros_${bonId}"></div>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="_lpAdicionarBonParceiro(${bonId})">➕ Adicionar parceiro</button>
     </div>
   </div>`;
 }
+function _lpBonParceiroLinhaHtml(bonId, rowId) {
+  return `
+  <div class="form-row" data-row-id="${rowId}" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 130px 36px;gap:0 10px;align-items:end;">
+    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Parceiro</label><input list="dlParceiros" class="form-control lp-bon-parceiro-nome" autocomplete="off"></div>
+    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Quantidade</label><input type="text" class="form-control num-mask lp-bon-parceiro-qtde" inputmode="decimal"></div>
+    <button type="button" class="btn-icon" title="Remover esta linha" onclick="_lpRemoverBonParceiro(${bonId}, ${rowId})" style="margin-bottom:1px;">🗑️</button>
+  </div>`;
+}
 function _lpAdicionarBonificacao() {
-  const rowId = ++_lpBonSeq;
-  document.getElementById('lpBonificacoesContainer').insertAdjacentHTML('beforeend', _lpBonLinhaHtml(rowId));
+  const bonId = ++_lpBonSeq;
+  document.getElementById('lpBonificacoesContainer').insertAdjacentHTML('beforeend', _lpBonBlocoHtml(bonId));
+  _lpAdicionarBonParceiro(bonId);
   _comboAttachAll();
   _maskNumeroAll();
+  _lpRenumerarBonificacoes();
 }
-function _lpRemoverBonificacao(rowId) {
-  const container = document.getElementById('lpBonificacoesContainer');
+function _lpRemoverBonificacao(bonId) {
+  const el = document.querySelector(`[data-bon-id="${bonId}"]`);
+  if (el) el.remove();
+  _lpRenumerarBonificacoes();
+}
+// Numera os blocos de bonificação na ordem em que aparecem na tela
+// ("Bonificação 1", "Bonificação 2"...), igual à numeração dos produtos.
+function _lpRenumerarBonificacoes() {
+  document.querySelectorAll('#lpBonificacoesContainer [data-bon-id] .lp-bon-titulo').forEach((titulo, i) => {
+    titulo.textContent = `Bonificação ${i + 1}`;
+  });
+}
+function _lpAdicionarBonParceiro(bonId) {
+  const rowId = ++_lpBonParceiroSeq;
+  const container = document.getElementById('lpBonParceiros_' + bonId);
+  if (container) container.insertAdjacentHTML('beforeend', _lpBonParceiroLinhaHtml(bonId, rowId));
+  _comboAttachAll();
+  _maskNumeroAll();
+  _lpAtualizarResumoBonificacao(bonId);
+}
+function _lpRemoverBonParceiro(bonId, rowId) {
+  const container = document.getElementById('lpBonParceiros_' + bonId);
   if (!container) return;
-  const row = container.querySelector(`[data-bon-id="${rowId}"]`);
+  const row = container.querySelector(`[data-row-id="${rowId}"]`);
   if (row) row.remove();
+  _lpAtualizarResumoBonificacao(bonId);
+}
+// Mesma lógica do resumo de produto: soma o que já foi distribuído entre os
+// parceiros e compara com a Qtde Solicitada da bonificação.
+function _lpAtualizarResumoBonificacao(bonId) {
+  const bloco = document.querySelector(`[data-bon-id="${bonId}"]`);
+  if (!bloco) return;
+  const badge = document.getElementById('lpBonResumo_' + bonId);
+  if (!badge) return;
+  const solicitada = _numVal(bloco.querySelector('.lp-bon-qtde'));
+  const distribuida = [...bloco.querySelectorAll('.lp-bon-parceiro-qtde')].reduce((soma, campo) => soma + _numVal(campo), 0);
+  if (!solicitada && !distribuida) { badge.textContent = ''; return; }
+  const pendente = solicitada - distribuida;
+  const percentual = solicitada ? Math.round((distribuida / solicitada) * 100) : 0;
+  let cor = 'var(--muted)';
+  let texto = `${fmtNum(distribuida)} / ${fmtNum(solicitada)} (${percentual}%)`;
+  if (solicitada > 0) {
+    if (pendente > 0) { cor = 'var(--warning, #b45309)'; texto += ` — faltam ${fmtNum(pendente)}`; }
+    else if (pendente < 0) { cor = 'var(--danger, #dc2626)'; texto += ` — excede em ${fmtNum(-pendente)}`; }
+    else { cor = 'var(--success, #16a34a)'; texto += ' — completo'; }
+  }
+  badge.style.color = cor;
+  badge.textContent = texto;
 }
 
 // ── Tabela "Pedidos Registrados" — junta Pedidos + Devoluções +
@@ -4077,7 +4177,8 @@ const _lpFiltrosRegistrados = {
   cliente: '',
   parceiro: '',
   produto: '',
-  unidade: ''
+  unidade: '',
+  situacaoDistribuicao: ''
 };
 
 function _lpNormalizarPesquisa(valor) {
@@ -4085,10 +4186,25 @@ function _lpNormalizarPesquisa(valor) {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 function _lpParceirosDoRegistroRegistrado(registro) {
-  if (registro._tipo === 'Pedido') {
+  if (registro._tipo === 'Pedido' || registro._tipo === 'Bonificação') {
     return (registro.parceiros || []).map(p => p.parceiro || '').join(' ');
   }
   return registro.parceiro || '';
+}
+// Pedido e Bonificação têm distribuição por parceiro opcional — considera
+// "pendente" quando ainda falta atribuir parceiro/quantidade pra cobrir toda
+// a Qtde Solicitada (inclusive quando não tem nenhum parceiro ainda).
+// Devolução não tem esse conceito (é sempre uma linha já completa).
+function _lpTemDistribuicao(registro) {
+  return registro._tipo === 'Pedido' || registro._tipo === 'Bonificação';
+}
+function _lpDistribuidoDoRegistro(registro) {
+  return (registro.parceiros || []).reduce((soma, p) => soma + (Number(p.quantidade) || 0), 0);
+}
+function _lpDistribuicaoPendente(registro) {
+  if (!_lpTemDistribuicao(registro)) return false;
+  const solicitada = Number(registro.qtde_solicitada) || 0;
+  return solicitada - _lpDistribuidoDoRegistro(registro) > 0.0001;
 }
 
 function _lpFiltrarListaRegistrados(lista) {
@@ -4107,6 +4223,8 @@ function _lpFiltrarListaRegistrados(lista) {
     if (parceiro && !_lpNormalizarPesquisa(_lpParceirosDoRegistroRegistrado(r)).includes(parceiro)) return false;
     if (produto && !_lpNormalizarPesquisa(r.produto).includes(produto)) return false;
     if (_lpFiltrosRegistrados.unidade && String(r.tipo || '').toLowerCase() !== _lpFiltrosRegistrados.unidade.toLowerCase()) return false;
+    if (_lpFiltrosRegistrados.situacaoDistribuicao === 'pendente' && !_lpDistribuicaoPendente(r)) return false;
+    if (_lpFiltrosRegistrados.situacaoDistribuicao === 'completo' && _lpDistribuicaoPendente(r)) return false;
     return true;
   });
 }
@@ -4133,6 +4251,7 @@ function _lpAplicarFiltrosRegistrados() {
   _lpFiltrosRegistrados.parceiro = valor('lpFiltroParceiroRegistrados').trim();
   _lpFiltrosRegistrados.produto = valor('lpFiltroProdutoRegistrados').trim();
   _lpFiltrosRegistrados.unidade = valor('lpFiltroUnidadeRegistrados');
+  _lpFiltrosRegistrados.situacaoDistribuicao = valor('lpFiltroSituacaoDistribuicaoRegistrados');
   _renderTabelaPedidosRegistrados(AppState.lancar.registrados || []);
 }
 function _lpRestaurarCamposFiltrosRegistrados() {
@@ -4148,6 +4267,7 @@ function _lpRestaurarCamposFiltrosRegistrados() {
   preencher('lpFiltroParceiroRegistrados', _lpFiltrosRegistrados.parceiro);
   preencher('lpFiltroProdutoRegistrados', _lpFiltrosRegistrados.produto);
   preencher('lpFiltroUnidadeRegistrados', _lpFiltrosRegistrados.unidade);
+  preencher('lpFiltroSituacaoDistribuicaoRegistrados', _lpFiltrosRegistrados.situacaoDistribuicao);
 }
 function _lpLimparFiltrosRegistrados() {
   _lpFiltroTipoRegistrados = 'Todos';
@@ -4158,7 +4278,7 @@ function _lpLimparFiltrosRegistrados() {
 function _lpChaveListaPorTipo(tipo) {
   if (tipo === 'Pedido') return 'pedidos';
   if (tipo === 'Devolução') return 'devolucoes';
-  return 'bonificacoes';
+  return 'bonificacoesPendentes';
 }
 function _lpAtualizarLinhaRegistradaLocal(tipo, linha, dados) {
   const chave = _lpChaveListaPorTipo(tipo);
@@ -4198,15 +4318,15 @@ function carregarPedidosRegistrados() {
   Promise.all([
     gs('listarPedidosGerenciar', App.token),
     gs('listarDevolucoesGerenciar', App.token),
-    gs('listarBonificacoesGerenciar', App.token)
-  ]).then(([pedidos, devolucoes, bonificacoes]) => {
+    gs('listarBonificacoesHeaderGerenciar', App.token)
+  ]).then(([pedidos, devolucoes, bonificacoesPendentes]) => {
     AppState.lancar.pedidos = pedidos;
     AppState.lancar.devolucoes = devolucoes;
-    AppState.lancar.bonificacoes = bonificacoes;
+    AppState.lancar.bonificacoesPendentes = bonificacoesPendentes;
     const combinados = [
       ...pedidos.map(p => ({ ...p, _tipo: 'Pedido' })),
       ...devolucoes.map(d => ({ ...d, _tipo: 'Devolução' })),
-      ...bonificacoes.map(b => ({ ...b, _tipo: 'Bonificação' }))
+      ...bonificacoesPendentes.map(b => ({ ...b, _tipo: 'Bonificação' }))
     ];
     AppState.lancar.registrados = combinados;
     _renderTabelaPedidosRegistrados(combinados);
@@ -4261,12 +4381,13 @@ function gerarRelatorioPedidosRegistrados() {
       colunas: ['Tipo', 'Data', 'Nº Pedido', 'NFe', 'Cliente', 'Parceiro', 'Produto', 'Qtde', 'Tipo Unid.', 'Status/Observação/Motivo'],
       linhas: lista.map(r => {
         const ehPedido = r._tipo === 'Pedido';
-        const parceiroExibido = ehPedido
+        const ehComDistribuicao = ehPedido || r._tipo === 'Bonificação';
+        const parceiroExibido = ehComDistribuicao
           ? (r.parceiros || []).map(p => `${p.parceiro} (${fmtNum(p.quantidade)})`).join(', ')
           : (r.parceiro || '');
         return [
           r._tipo, fmtDate(r.data), r.numero_pedido || '', r.nfe || '—', r.cliente || '', parceiroExibido || '—',
-          r.produto || '', fmtNum(ehPedido ? r.qtde_solicitada : r.quantidade), r.tipo || '',
+          r.produto || '', fmtNum(ehComDistribuicao ? r.qtde_solicitada : r.quantidade), r.tipo || '',
           ehPedido ? (r.status || r.observacoes || '') : (r.motivo || '')
         ];
       })
@@ -4288,9 +4409,13 @@ function _renderTabelaPedidosRegistrados(lista) {
   if (resumo) {
     const possuiFiltro = _lpFiltroTipoRegistrados !== 'Todos' ||
       Object.values(_lpFiltrosRegistrados).some(Boolean);
-    resumo.textContent = !possuiFiltro
+    const totalPendentes = (AppState.lancar.registrados || []).filter(_lpDistribuicaoPendente).length;
+    const avisoPendentes = totalPendentes
+      ? ` <strong style="color:var(--critical);">⚠️ ${totalPendentes} pendente${totalPendentes > 1 ? 's' : ''} de distribuição por parceiro.</strong>`
+      : '';
+    resumo.innerHTML = (!possuiFiltro
       ? `Exibindo todos os ${totalSemFiltro} registros.`
-      : `Exibindo ${lista.length} de ${totalSemFiltro} registros encontrados.`;
+      : `Exibindo ${lista.length} de ${totalSemFiltro} registros encontrados.`) + avisoPendentes;
   }
   if (!tbody) return;
   if (!lista.length) {
@@ -4299,25 +4424,47 @@ function _renderTabelaPedidosRegistrados(lista) {
   }
   tbody.innerHTML = lista.map(r => {
     const ehPedido = r._tipo === 'Pedido';
-    const nomeAba = r._tipo === 'Devolução' ? 'Devoluções' : 'Bonificações';
-    const editarOnclick = ehPedido ? `abrirEditarPedido(${r.linha})` : `abrirEditarRegistro('${nomeAba}', ${r.linha})`;
-    const excluirOnclick = ehPedido ? `excluirPedidoRegistrado(${r.linha})` : `excluirRegistroRegistrado('${nomeAba}', ${r.linha})`;
-    // Num Pedido, um produto pode estar dividido entre vários parceiros —
-    // mostra a quantidade exata de cada um, não só a lista de nomes
-    // (senão não dá pra saber quem ficou com quanto).
-    const parceiroExibido = ehPedido
+    const ehBonificacao = r._tipo === 'Bonificação';
+    // Bonificação agora segue o mesmo modelo de Pedido — cabeçalho (Produto +
+    // Qtde Solicitada) com distribuição por parceiro à parte, editável no
+    // mesmo estilo do modal "Editar Pedido" — só Devolução continua com o
+    // modelo antigo de linha única (parceiro+quantidade juntos).
+    let editarOnclick, excluirOnclick;
+    if (ehPedido) {
+      editarOnclick = `abrirEditarPedido(${r.linha})`;
+      excluirOnclick = `excluirPedidoRegistrado(${r.linha})`;
+    } else if (ehBonificacao) {
+      editarOnclick = `abrirEditarBonificacao(${r.linha})`;
+      excluirOnclick = `excluirBonificacaoRegistrada(${r.linha})`;
+    } else {
+      editarOnclick = `abrirEditarRegistro('Devoluções', ${r.linha})`;
+      excluirOnclick = `excluirRegistroRegistrado('Devoluções', ${r.linha})`;
+    }
+    // Num Pedido (e agora numa Bonificação), um produto pode estar dividido
+    // entre vários parceiros — mostra a quantidade exata de cada um, não só
+    // a lista de nomes (senão não dá pra saber quem ficou com quanto).
+    const ehComDistribuicao = ehPedido || ehBonificacao;
+    const parceiroExibido = ehComDistribuicao
       ? (r.parceiros || []).map(p => `${p.parceiro} (${fmtNum(p.quantidade)})`).join(', ')
       : (r.parceiro || '');
+    // Destaque visual pra quem falta atribuir parceiro/quantidade — linha com
+    // fundo de alerta e um selo "Pendente" na coluna Parceiro, pra saltar aos
+    // olhos na tabela sem precisar abrir cada linha pra conferir.
+    const pendente = _lpDistribuicaoPendente(r);
+    const faltam = pendente ? Number(r.qtde_solicitada) - _lpDistribuidoDoRegistro(r) : 0;
+    const seloPendente = pendente
+      ? `<span class="badge badge-vermelho" title="Faltam ${fmtNum(faltam)} pra completar a Qtde Solicitada">⚠️ Pendente${_lpDistribuidoDoRegistro(r) > 0 ? ` (faltam ${fmtNum(faltam)})` : ''}</span>`
+      : '';
     return `
-    <tr>
+    <tr${pendente ? ' style="background:var(--warning-soft);"' : ''}>
       <td>${_lpBadgeTipo(r._tipo)}</td>
       <td>${fmtDate(r.data)}</td>
       <td><strong>${r.numero_pedido || ''}</strong></td>
       <td>${r.nfe || '—'}</td>
       <td>${r.cliente || ''}</td>
-      <td>${parceiroExibido || '—'}</td>
+      <td>${parceiroExibido || '—'}${seloPendente ? `<br>${seloPendente}` : ''}</td>
       <td>${r.produto || ''}</td>
-      <td>${fmtNum(ehPedido ? r.qtde_solicitada : r.quantidade)}</td>
+      <td>${fmtNum(ehComDistribuicao ? r.qtde_solicitada : r.quantidade)}</td>
       <td>${r.tipo || ''}</td>
       <td>${ehPedido ? (r.status || r.observacoes || '') : (r.motivo || '')}</td>
       <td style="white-space:nowrap;">
@@ -4328,9 +4475,11 @@ function _renderTabelaPedidosRegistrados(lista) {
   }).join('');
 }
 
+// Esse modal genérico agora só é usado por Devolução — Bonificação passou a
+// ter o próprio modal ("Editar Bonificação"), no mesmo estilo do modal
+// "Editar Pedido" (cabeçalho + distribuição por parceiro).
 function abrirEditarRegistro(nomeAba, linha) {
-  const lista = nomeAba === 'Devoluções' ? AppState.lancar.devolucoes : AppState.lancar.bonificacoes;
-  const r = (lista || []).find(x => x.linha === linha);
+  const r = (AppState.lancar.devolucoes || []).find(x => x.linha === linha);
   if (!r) { toast('Registro não encontrado — atualize a tabela e tente de novo.', 'error'); return; }
   _registroEditando = { nomeAba, linha: r.linha, original: { numero_pedido: r.numero_pedido, data: r.data, produto: r.produto } };
   document.getElementById('erData').value = r.data;
@@ -4341,14 +4490,8 @@ function abrirEditarRegistro(nomeAba, linha) {
   document.getElementById('erTipo').value = r.tipo === 'kg' ? 'kg' : 'Unidades';
   _setNumVal(document.getElementById('erQtde'), r.quantidade);
   document.getElementById('erMotivo').value = r.motivo;
-  document.getElementById('erMotivo').dataset.comboList = nomeAba === 'Devoluções' ? 'dlMotivosDevolucao' : 'dlMotivosBonificacao';
-  // NFe da bonificação é própria (nota de bonificação, diferente da NFe do
-  // pedido) — só faz sentido editar esse campo quando o registro é uma
-  // Bonificação; Devolução continua sem NFe própria.
-  const ehBonificacao = nomeAba === 'Bonificações';
-  document.getElementById('erNfeWrap').classList.toggle('hidden', !ehBonificacao);
-  document.getElementById('erNfe').value = ehBonificacao ? (r.nfe || '') : '';
-  document.getElementById('modalEditarRegistroTitulo').textContent = nomeAba === 'Devoluções' ? '✏️ Editar Devolução' : '✏️ Editar Bonificação';
+  document.getElementById('erMotivo').dataset.comboList = 'dlMotivosDevolucao';
+  document.getElementById('modalEditarRegistroTitulo').textContent = '✏️ Editar Devolução';
   document.getElementById('modalEditarRegistro').classList.add('show');
 }
 
@@ -4365,9 +4508,6 @@ function salvarEdicaoRegistro() {
     quantidade:     _numVal(document.getElementById('erQtde')),
     motivo:         document.getElementById('erMotivo').value.trim()
   };
-  if (edicao.nomeAba === 'Bonificações') {
-    dados.nfe = document.getElementById('erNfe').value.trim();
-  }
   if (!dados.data || !dados.cliente || !dados.parceiro || !dados.produto || !(Number(dados.quantidade) > 0)) {
     toast('Preencha Data, Cliente, Parceiro, Produto e uma Quantidade maior que zero.', 'error');
     return;
@@ -4379,24 +4519,21 @@ function salvarEdicaoRegistro() {
     fecharModal('modalEditarRegistro');
     _registroEditando = null;
     _lpInvalidarCaches(['devolucoes', 'resumo']);
-    const tipo = edicao.nomeAba === 'Devoluções' ? 'Devolução' : 'Bonificação';
-    _lpAtualizarLinhaRegistradaLocal(tipo, edicao.linha, dados);
+    _lpAtualizarLinhaRegistradaLocal('Devolução', edicao.linha, dados);
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
 async function excluirRegistroRegistrado(nomeAba, linha) {
-  const lista = nomeAba === 'Devoluções' ? AppState.lancar.devolucoes : AppState.lancar.bonificacoes;
-  const r = (lista || []).find(x => x.linha === linha);
+  const r = (AppState.lancar.devolucoes || []).find(x => x.linha === linha);
   if (!r) { toast('Registro não encontrado — atualize a tabela e tente de novo.', 'error'); return; }
-  const tipoLabel = nomeAba === 'Devoluções' ? 'devolução' : 'bonificação';
-  const ok = await confirmModal('Excluir esta ' + tipoLabel + ' de ' + r.cliente + ' (' + r.produto + ')? Essa ação não pode ser desfeita.', { titulo: 'Excluir registro', textoOk: 'Excluir', perigo: true });
+  const ok = await confirmModal('Excluir esta devolução de ' + r.cliente + ' (' + r.produto + ')? Essa ação não pode ser desfeita.', { titulo: 'Excluir registro', textoOk: 'Excluir', perigo: true });
   if (!ok) return;
   showLoading(true);
   gs('excluirRegistroLinha', App.token, nomeAba, r.linha, { numero_pedido: r.numero_pedido, data: r.data, produto: r.produto }).then(() => {
     showLoading(false);
-    toast((tipoLabel === 'devolução' ? 'Devolução' : 'Bonificação') + ' excluída com sucesso.', 'success');
+    toast('Devolução excluída com sucesso.', 'success');
     _lpInvalidarCaches(['devolucoes', 'resumo']);
-    _lpExcluirLinhaRegistradaLocal(nomeAba === 'Devoluções' ? 'Devolução' : 'Bonificação', r.linha);
+    _lpExcluirLinhaRegistradaLocal('Devolução', r.linha);
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
@@ -4544,6 +4681,121 @@ async function excluirPedidoRegistrado(linha) {
     if (!(AppState.lancar.pedidos || []).some(item => item.numero_pedido === p.numero_pedido)) {
       _lpPedidosList = (_lpPedidosList || []).filter(item => item.numero_pedido !== p.numero_pedido);
     }
+  }).catch(err => { showLoading(false); toast(err.message, 'error'); });
+}
+
+// ── Modal "Editar Bonificação" — mesmo modelo do "Editar Pedido": cabeçalho
+// (Produto + Qtde Solicitada) editável junto com a distribuição por
+// parceiro, que pode ser preenchida agora ou deixada em branco. ──
+let _bonificacaoEditando = null; // { linha, numero_pedido_original, produto_original }
+let _ebParceiroSeq = 0;
+function _ebParceiroLinhaHtml(rowId) {
+  return `
+  <div class="form-row" data-row-id="${rowId}" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 130px 36px;gap:0 10px;align-items:end;">
+    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Parceiro</label><input list="dlParceiros" class="form-control eb-parceiro-nome" autocomplete="off"></div>
+    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Quantidade</label><input type="text" class="form-control num-mask eb-parceiro-qtde" inputmode="decimal"></div>
+    <button type="button" class="btn-icon" title="Remover esta linha" onclick="_ebRemoverParceiro(${rowId})" style="margin-bottom:1px;">🗑️</button>
+  </div>`;
+}
+function _ebAdicionarParceiro(nome, qtde) {
+  const rowId = ++_ebParceiroSeq;
+  const container = document.getElementById('ebParceirosLista');
+  if (!container) return;
+  container.insertAdjacentHTML('beforeend', _ebParceiroLinhaHtml(rowId));
+  const row = container.querySelector(`[data-row-id="${rowId}"]`);
+  if (nome) row.querySelector('.eb-parceiro-nome').value = nome;
+  if (qtde) _setNumVal(row.querySelector('.eb-parceiro-qtde'), qtde);
+  _comboAttachAll(row);
+  _maskNumeroAll(row);
+}
+function _ebRemoverParceiro(rowId) {
+  const container = document.getElementById('ebParceirosLista');
+  if (!container) return;
+  const row = container.querySelector(`[data-row-id="${rowId}"]`);
+  if (row) row.remove();
+}
+
+function abrirEditarBonificacao(linha) {
+  const b = (AppState.lancar.bonificacoesPendentes || []).find(x => x.linha === linha);
+  if (!b) { toast('Bonificação não encontrada — atualize a tabela e tente de novo.', 'error'); return; }
+  _bonificacaoEditando = { linha: b.linha, numero_pedido_original: b.numero_pedido, produto_original: b.produto };
+  document.getElementById('ebData').value = b.data;
+  document.getElementById('ebNumero').value = b.numero_pedido;
+  document.getElementById('ebNfe').value = b.nfe;
+  document.getElementById('ebCliente').value = b.cliente;
+  document.getElementById('ebProduto').value = b.produto;
+  document.getElementById('ebTipo').value = b.tipo === 'kg' ? 'kg' : 'Unidades';
+  _setNumVal(document.getElementById('ebQtdeSolicitada'), b.qtde_solicitada);
+  document.getElementById('ebMotivo').value = b.motivo;
+  document.getElementById('ebParceirosLista').innerHTML = '';
+  _ebParceiroSeq = 0;
+  if ((b.parceiros || []).length) {
+    b.parceiros.forEach(pp => _ebAdicionarParceiro(pp.parceiro, pp.quantidade));
+  } else {
+    _ebAdicionarParceiro();
+  }
+  document.getElementById('modalEditarBonificacao').classList.add('show');
+}
+
+function salvarEdicaoBonificacao() {
+  if (!_bonificacaoEditando) return;
+  const edicao = _bonificacaoEditando;
+  const dados = {
+    data:             document.getElementById('ebData').value,
+    semana:           _semanaISO(document.getElementById('ebData').value),
+    numero_pedido:    document.getElementById('ebNumero').value.trim(),
+    nfe:              document.getElementById('ebNfe').value.trim(),
+    cliente:          document.getElementById('ebCliente').value.trim(),
+    produto:          document.getElementById('ebProduto').value.trim(),
+    tipo:             document.getElementById('ebTipo').value,
+    qtde_solicitada:  _numVal(document.getElementById('ebQtdeSolicitada')),
+    motivo:           document.getElementById('ebMotivo').value.trim()
+  };
+  if (!dados.data || !dados.numero_pedido || !dados.cliente || !dados.produto || !(Number(dados.qtde_solicitada) > 0)) {
+    toast('Preencha Data, Número do Pedido, Cliente, Produto e uma Qtde Solicitada maior que zero.', 'error');
+    return;
+  }
+  const parceiros = Array.from(document.querySelectorAll('#ebParceirosLista [data-row-id]')).map(row => ({
+    parceiro: row.querySelector('.eb-parceiro-nome').value.trim(),
+    quantidade: _numVal(row.querySelector('.eb-parceiro-qtde'))
+  })).filter(p => p.parceiro && p.quantidade > 0);
+
+  showLoading(true);
+  gs('editarBonificacaoHeaderLinha', App.token, edicao.linha, edicao.numero_pedido_original, dados)
+    .then(() => gs('salvarDistribuicaoBonificacao', App.token, {
+      numero_pedido_original: edicao.numero_pedido_original,
+      produto_original: edicao.produto_original,
+      numero_pedido: dados.numero_pedido,
+      produto: dados.produto,
+      cliente: dados.cliente,
+      tipo: dados.tipo,
+      motivo: dados.motivo,
+      nfe: dados.nfe,
+      data: dados.data,
+      parceiros
+    }))
+    .then(() => {
+      showLoading(false);
+      toast('Bonificação atualizada com sucesso.', 'success');
+      fecharModal('modalEditarBonificacao');
+      _bonificacaoEditando = null;
+      _lpInvalidarCaches(['resumo']);
+      const atualizado = { ...dados, parceiros };
+      _lpAtualizarLinhaRegistradaLocal('Bonificação', edicao.linha, atualizado);
+    }).catch(err => { showLoading(false); toast(err.message, 'error'); });
+}
+
+async function excluirBonificacaoRegistrada(linha) {
+  const b = (AppState.lancar.bonificacoesPendentes || []).find(x => x.linha === linha);
+  if (!b) { toast('Bonificação não encontrada — atualize a tabela e tente de novo.', 'error'); return; }
+  const ok = await confirmModal('Excluir a bonificação ' + b.numero_pedido + ' (' + b.produto + ') de ' + b.cliente + '? Essa ação não pode ser desfeita.', { titulo: 'Excluir bonificação', textoOk: 'Excluir', perigo: true });
+  if (!ok) return;
+  showLoading(true);
+  gs('excluirBonificacaoHeaderLinha', App.token, b.linha, b.numero_pedido, b.produto).then(() => {
+    showLoading(false);
+    toast('Bonificação excluída com sucesso.', 'success');
+    _lpInvalidarCaches(['resumo']);
+    _lpExcluirLinhaRegistradaLocal('Bonificação', b.linha);
   }).catch(err => { showLoading(false); toast(err.message, 'error'); });
 }
 
@@ -5048,16 +5300,28 @@ async function salvarNovoPedido() {
   if (!produtos.length) { toast('Adicione ao menos um produto ao pedido.', 'error'); return; }
 
   const bonificacoes = [];
-  document.querySelectorAll('#lpBonificacoesContainer [data-bon-id]').forEach(linha => {
+  document.querySelectorAll('#lpBonificacoesContainer [data-bon-id]').forEach(bloco => {
     if (erro) return;
-    const produto = linha.querySelector('.lp-bon-produto').value.trim();
-    const parceiro = linha.querySelector('.lp-bon-parceiro').value.trim();
-    const tipo = linha.querySelector('.lp-bon-tipo').value;
-    const quantidade = _numVal(linha.querySelector('.lp-bon-qtde'));
-    const motivo = linha.querySelector('.lp-bon-motivo').value.trim();
-    if (!produto && !parceiro && !quantidade && !motivo) return; // linha em branco, ignora
-    if (!produto || !parceiro || !(quantidade > 0)) { erro = 'Preencha Produto, Parceiro e uma Quantidade (maior que zero) em cada linha de bonificação.'; return; }
-    bonificacoes.push({ produto, parceiro, tipo, quantidade, motivo });
+    const produto = bloco.querySelector('.lp-bon-produto').value.trim();
+    const tipo = bloco.querySelector('.lp-bon-tipo').value;
+    const qtdeSolicitada = _numVal(bloco.querySelector('.lp-bon-qtde'));
+    const motivo = bloco.querySelector('.lp-bon-motivo').value.trim();
+    if (!produto && !qtdeSolicitada && !motivo) return; // bloco em branco, ignora
+    if (!produto || !(qtdeSolicitada > 0)) {
+      erro = 'Preencha o nome e a Qtde Solicitada (maior que zero) de cada bonificação.';
+      return;
+    }
+    const distribuicoes = [];
+    const camposParceiro = [...bloco.querySelectorAll('.lp-bon-parceiro-nome')];
+    const camposQtde = [...bloco.querySelectorAll('.lp-bon-parceiro-qtde')];
+    camposParceiro.forEach((campo, i) => {
+      const parceiro = campo.value.trim();
+      const quantidade = _numVal(camposQtde[i]);
+      if (!parceiro && !quantidade) return; // linha em branco, ignora
+      if (!parceiro || !(quantidade > 0)) { erro = 'Preencha o parceiro e a quantidade (maior que zero) em cada linha de distribuição da bonificação.'; return; }
+      distribuicoes.push({ parceiro, quantidade });
+    });
+    if (!erro) bonificacoes.push({ produto, tipo, qtde_solicitada: qtdeSolicitada, motivo, distribuicoes });
   });
 
   if (erro) { toast(erro, 'error'); return; }
@@ -5091,7 +5355,7 @@ async function _lpLimparNovoPedido() {
   document.getElementById('lpCliente').value = '';
   document.getElementById('lpObservacoes').value = '';
   _lpAtualizarSemana();
-  _lpProdutoSeq = 0; _lpParceiroSeq = 0; _lpBonSeq = 0;
+  _lpProdutoSeq = 0; _lpParceiroSeq = 0; _lpBonSeq = 0; _lpBonParceiroSeq = 0;
   document.getElementById('lpProdutosContainer').innerHTML = '';
   document.getElementById('lpBonificacoesContainer').innerHTML = '';
   _lpAdicionarProduto();
