@@ -3705,7 +3705,7 @@ function renderLancarTab() {
           </div>
           <div class="filter-item">
             <label class="form-label">NFe</label>
-            <input id="lpFiltroNfeRegistrados" class="form-control" inputmode="numeric" autocomplete="off" placeholder="Pesquisar NFe" oninput="_lpAplicarFiltrosRegistrados()">
+            <input id="lpFiltroNfeRegistrados" class="form-control" inputmode="numeric" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" placeholder="Pesquisar NFe" oninput="_lpAplicarFiltrosRegistrados()">
           </div>
           <div class="filter-item">
             <label class="form-label">Situação da NFe</label>
@@ -3716,15 +3716,15 @@ function renderLancarTab() {
           </div>
           <div class="filter-item">
             <label class="form-label">Cliente</label>
-            <input id="lpFiltroClienteRegistrados" list="dlClientes" class="form-control" autocomplete="off" placeholder="Pesquisar cliente" oninput="_lpAplicarFiltrosRegistrados()">
+            <input id="lpFiltroClienteRegistrados" list="dlClientes" class="form-control" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" placeholder="Pesquisar cliente" oninput="_lpAplicarFiltrosRegistrados()">
           </div>
           <div class="filter-item">
             <label class="form-label">Parceiro</label>
-            <input id="lpFiltroParceiroRegistrados" list="dlParceiros" class="form-control" autocomplete="off" placeholder="Pesquisar parceiro" oninput="_lpAplicarFiltrosRegistrados()">
+            <input id="lpFiltroParceiroRegistrados" list="dlParceiros" class="form-control" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" placeholder="Pesquisar parceiro" oninput="_lpAplicarFiltrosRegistrados()">
           </div>
           <div class="filter-item">
             <label class="form-label">Produto</label>
-            <input id="lpFiltroProdutoRegistrados" list="dlProdutos" class="form-control" autocomplete="off" placeholder="Pesquisar produto" oninput="_lpAplicarFiltrosRegistrados()">
+            <input id="lpFiltroProdutoRegistrados" list="dlProdutos" class="form-control" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" placeholder="Pesquisar produto" oninput="_lpAplicarFiltrosRegistrados()">
           </div>
           <div class="filter-item">
             <label class="form-label">Tipo de unidade</label>
